@@ -306,6 +306,24 @@
 
     <div id="canvas-container"></div>
 
+    <!-- 雷电闪光全屏遮罩：通过 CSS opacity 切换实现整个屏幕的闪白效果 -->
+    <div
+      id="lightning-overlay"
+      style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #ffffff;
+        opacity: 0;
+        pointer-events: none;
+        mix-blend-mode: screen;
+        z-index: 50;
+        transition: opacity 0.08s linear;
+      "
+    ></div>
+
     <div class="overlay">
       <div class="title-section">
         <h1>3D 城市控制面板</h1>
@@ -1258,9 +1276,12 @@
         currentMode: "clear", // 当前天气：clear | rain | snow | fog | thunder
         rainPoints: null, // 雨点粒子对象
         snowPoints: null, // 雪点粒子对象
-        lightning: null, // 雷电闪光面板
+        lightningOverlay: null, // 全屏闪光 DOM 遮罩
         thunderTimer: 0, // 距下次雷击的倒计时（秒）
-        thunderFlashLeft: 0, // 当前闪光剩余时间
+        thunderFlashLeft: 0, // 当前闪光剩余时间（秒）
+        thunderFlashDuration: 0.18, // 单次闪光总时长
+        // 雷击时光照增量（瞬时值），用于场景内同步亮一下
+        thunderAmbientBoost: 0,
         // 默认 fog 备份，便于切换回晴朗时恢复
         defaultFogDensity: 0.0006,
         defaultBgColor: new THREE.Color(0x87ceeb),
@@ -1344,46 +1365,46 @@
       };
 
       /**
-       * 创建雷电闪光层
-       * 用一个铺满天空的 plane 在闪击时短暂提升强度模拟雷光
+       * 获取全屏闪光 DOM 遮罩
+       * 雷击时通过修改其 opacity 使整个画面瞬间变白；
+       * 比放置 3D PlaneGeometry 更可靠，不受相机角度影响
        */
-      const createLightningFlash = () => {
-        const geo = new THREE.PlaneGeometry(3000, 3000);
-        const mat = new THREE.MeshBasicMaterial({
-          color: 0xffffff,
-          transparent: true,
-          opacity: 0,
-          fog: false,
-          depthWrite: false,
-          side: THREE.DoubleSide,
-        });
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(0, 600, 0);
-        mesh.rotation.x = Math.PI / 2;
-        scene.add(mesh);
-        return mesh;
+      const getLightningOverlay = () => {
+        return document.getElementById("lightning-overlay");
       };
 
       // 初始化所有粒子（隐藏）
       weatherSystem.rainPoints = createRainParticles();
       weatherSystem.snowPoints = createSnowParticles();
-      weatherSystem.lightning = createLightningFlash();
+      weatherSystem.lightningOverlay = getLightningOverlay();
 
       /**
        * 切换天气模式
        * 不同模式调整雾浓度/颜色、粒子可见性、雷电相关计时器
        */
       const setWeatherMode = (mode) => {
+        const prevMode = weatherSystem.currentMode;
         weatherSystem.currentMode = mode;
         // 默认隐藏全部粒子
         weatherSystem.rainPoints.visible = false;
         weatherSystem.snowPoints.visible = false;
-        weatherSystem.lightning.material.opacity = 0;
+        // 重置闪光遮罩与计时
+        if (weatherSystem.lightningOverlay) {
+          weatherSystem.lightningOverlay.style.opacity = 0;
+        }
+        weatherSystem.thunderFlashLeft = 0;
+        weatherSystem.thunderAmbientBoost = 0;
 
         const isNight = iNight.checked;
         // 在夜晚保留夜间风格的雾色
         const baseBg = isNight ? 0x01010b : 0x87ceeb;
         const baseFogDensity = isNight ? 0.0012 : 0.0006;
+
+        // 从雷电模式切走时，恢复正常环境光/日光强度
+        if (prevMode === "thunder" && mode !== "thunder") {
+          ambient.intensity = isNight ? 0.5 : 2.0;
+          sun.intensity = isNight ? 0.5 : 5.0;
+        }
 
         switch (mode) {
           case "rain":
@@ -1409,7 +1430,8 @@
             scene.background.set(0x222831);
             scene.fog.color.set(0x222831);
             scene.fog.density = 0.0025;
-            weatherSystem.thunderTimer = 1 + Math.random() * 3;
+            // 让首次雷击在 0.8~2s 内触发，避免切换后长时间无反馈
+            weatherSystem.thunderTimer = 0.8 + Math.random() * 1.2;
             break;
           case "clear":
           default:
@@ -1834,23 +1856,44 @@
         }
 
         // 天气：雷电闪光
+        // 使用 DOM 全屏 overlay + 临时增强光照 实现雷击瞬间整个画面变白
         if (weatherSystem.currentMode === "thunder") {
           weatherSystem.thunderTimer -= delta;
           if (weatherSystem.thunderFlashLeft > 0) {
-            // 闪光中：opacity 缓慢衰减
+            // 闪光中：opacity 与光照增量按剩余时间衰减
             weatherSystem.thunderFlashLeft -= delta;
-            weatherSystem.lightning.material.opacity = Math.max(
+            const t = Math.max(
               0,
-              weatherSystem.thunderFlashLeft / 0.25,
+              weatherSystem.thunderFlashLeft /
+                weatherSystem.thunderFlashDuration,
             );
-          } else if (weatherSystem.thunderTimer <= 0) {
-            // 触发一次新的雷击
-            weatherSystem.thunderFlashLeft = 0.25; // 闪光持续 0.25s
-            weatherSystem.lightning.material.opacity = 0.85;
-            weatherSystem.thunderTimer = 2 + Math.random() * 5;
+            // 双闪：在衰减期内做一次正弦扰动，模拟"咔嚓"二次闪
+            const flashIntensity = t * (0.6 + 0.4 * Math.abs(Math.sin(t * 18)));
+            if (weatherSystem.lightningOverlay) {
+              weatherSystem.lightningOverlay.style.opacity = flashIntensity;
+            }
+            weatherSystem.thunderAmbientBoost = flashIntensity * 4;
+            // 实时叠加到环境光与平行光，使建筑也跟着闪
+            ambient.intensity = 0.5 + weatherSystem.thunderAmbientBoost;
+            sun.intensity = 0.5 + weatherSystem.thunderAmbientBoost * 1.5;
+          } else {
+            // 闪光结束：恢复到雷电场景的常态光照
+            if (weatherSystem.lightningOverlay) {
+              weatherSystem.lightningOverlay.style.opacity = 0;
+            }
+            ambient.intensity = iNight.checked ? 0.4 : 0.8;
+            sun.intensity = iNight.checked ? 0.4 : 1.2;
+
+            if (weatherSystem.thunderTimer <= 0) {
+              // 触发一次新的雷击
+              weatherSystem.thunderFlashLeft =
+                weatherSystem.thunderFlashDuration;
+              // 下次间隔 1.5~5s
+              weatherSystem.thunderTimer = 1.5 + Math.random() * 3.5;
+            }
           }
-        } else if (weatherSystem.lightning) {
-          weatherSystem.lightning.material.opacity = 0;
+        } else if (weatherSystem.lightningOverlay) {
+          weatherSystem.lightningOverlay.style.opacity = 0;
         }
 
         // 信号灯自动循环
