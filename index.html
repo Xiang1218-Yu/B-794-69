@@ -526,93 +526,130 @@
       let currentWeather = "clear";
       const weatherParticles = { rain: null, snow: null };
 
-      // 创建雨滴纹理
-      const createRainTexture = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = 32;
-        canvas.height = 64;
-        const ctx = canvas.getContext("2d");
-        const grad = ctx.createLinearGradient(16, 0, 16, 64);
-        grad.addColorStop(0, "rgba(180, 210, 255, 0)");
-        grad.addColorStop(0.3, "rgba(180, 210, 255, 0.8)");
-        grad.addColorStop(1, "rgba(180, 210, 255, 0)");
-        ctx.fillStyle = grad;
-        ctx.fillRect(14, 0, 4, 64);
-        return new THREE.CanvasTexture(canvas);
-      };
-
-      // 创建雪花纹理
+      // 创建雪花纹理（六角星形雪花）
       const createSnowTexture = () => {
         const canvas = document.createElement("canvas");
-        canvas.width = 32;
-        canvas.height = 32;
+        canvas.width = 64;
+        canvas.height = 64;
         const ctx = canvas.getContext("2d");
-        const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 14);
-        grad.addColorStop(0, "rgba(255, 255, 255, 1)");
-        grad.addColorStop(0.4, "rgba(255, 255, 255, 0.6)");
+        const cx = 32;
+        const cy = 32;
+        ctx.fillStyle = "rgba(0,0,0,0)";
+        ctx.fillRect(0, 0, 64, 64);
+
+        // 绘制六角雪花
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        for (let a = 0; a < 6; a++) {
+          const angle = (a * Math.PI) / 3;
+          const ex = cx + Math.cos(angle) * 22;
+          const ey = cy + Math.sin(angle) * 22;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+          // 小分支
+          const mx = cx + Math.cos(angle) * 13;
+          const my = cy + Math.sin(angle) * 13;
+          for (let d = -1; d <= 1; d += 2) {
+            const bAngle = angle + d * 0.5;
+            const bx = mx + Math.cos(bAngle) * 7;
+            const by = my + Math.sin(bAngle) * 7;
+            ctx.beginPath();
+            ctx.moveTo(mx, my);
+            ctx.lineTo(bx, by);
+            ctx.stroke();
+          }
+        }
+
+        // 中心光晕
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 28);
+        grad.addColorStop(0, "rgba(255, 255, 255, 0.3)");
         grad.addColorStop(1, "rgba(255, 255, 255, 0)");
         ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 32, 32);
+        ctx.fillRect(0, 0, 64, 64);
+
         return new THREE.CanvasTexture(canvas);
       };
 
-      // 创建雨粒子系统
+      // 创建雨线段系统（LineSegments实现拖尾滴落效果）
       const createRainSystem = () => {
-        const rainCount = 15000;
-        const rainGeo = new THREE.BufferGeometry();
-        const rainPositions = new Float32Array(rainCount * 3);
+        const rainCount = 12000;
+        // 每滴雨2个顶点（线段起点和终点），所以顶点数 = rainCount * 2
+        const vertexCount = rainCount * 2;
+        const rainPositions = new Float32Array(vertexCount * 3);
         const rainVelocities = new Float32Array(rainCount);
+        const rainLengths = new Float32Array(rainCount);
 
         for (let i = 0; i < rainCount; i++) {
-          rainPositions[i * 3] = (Math.random() - 0.5) * 1200;
-          rainPositions[i * 3 + 1] = Math.random() * 300;
-          rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 1200;
-          rainVelocities[i] = 4 + Math.random() * 3;
+          const x = (Math.random() - 0.5) * 1200;
+          const y = Math.random() * 300;
+          const z = (Math.random() - 0.5) * 1200;
+          rainVelocities[i] = 5 + Math.random() * 4;
+          // 雨滴长度随速度变化，速度越快拖尾越长
+          rainLengths[i] = rainVelocities[i] * 1.8;
+
+          // 线段起点（雨滴顶部）
+          rainPositions[i * 6] = x;
+          rainPositions[i * 6 + 1] = y;
+          rainPositions[i * 6 + 2] = z;
+          // 线段终点（雨滴底部，略偏移模拟风向）
+          rainPositions[i * 6 + 3] = x + 0.3;
+          rainPositions[i * 6 + 4] = y - rainLengths[i];
+          rainPositions[i * 6 + 5] = z;
         }
 
+        const rainGeo = new THREE.BufferGeometry();
         rainGeo.setAttribute("position", new THREE.Float32BufferAttribute(rainPositions, 3));
 
-        const rainMat = new THREE.PointsMaterial({
-          color: 0xaaccff,
-          size: 3.0,
+        const rainMat = new THREE.LineBasicMaterial({
+          color: 0x99bbdd,
           transparent: true,
-          opacity: 0.6,
-          depthWrite: false,
+          opacity: 0.35,
           fog: false,
-          sizeAttenuation: true,
         });
 
-        const rainMesh = new THREE.Points(rainGeo, rainMat);
+        const rainMesh = new THREE.LineSegments(rainGeo, rainMat);
         rainMesh.visible = false;
         scene.add(rainMesh);
 
-        weatherParticles.rain = { mesh: rainMesh, positions: rainPositions, velocities: rainVelocities, count: rainCount };
+        weatherParticles.rain = {
+          mesh: rainMesh,
+          positions: rainPositions,
+          velocities: rainVelocities,
+          lengths: rainLengths,
+          count: rainCount,
+        };
       };
 
-      // 创建雪粒子系统
+      // 创建雪粒子系统（Points + 六角雪花纹理 + 飘荡动画）
       const createSnowSystem = () => {
-        const snowCount = 8000;
+        const snowCount = 6000;
         const snowGeo = new THREE.BufferGeometry();
         const snowPositions = new Float32Array(snowCount * 3);
         const snowVelocities = new Float32Array(snowCount);
         const snowDrifts = new Float32Array(snowCount);
+        const snowSizes = new Float32Array(snowCount);
 
         for (let i = 0; i < snowCount; i++) {
           snowPositions[i * 3] = (Math.random() - 0.5) * 1200;
           snowPositions[i * 3 + 1] = Math.random() * 300;
           snowPositions[i * 3 + 2] = (Math.random() - 0.5) * 1200;
-          snowVelocities[i] = 0.8 + Math.random() * 1.2;
+          // 雪花速度差异大：大雪花慢，小雪花快
+          snowVelocities[i] = 0.3 + Math.random() * 0.8;
           snowDrifts[i] = Math.random() * Math.PI * 2;
+          snowSizes[i] = 3 + Math.random() * 5;
         }
 
         snowGeo.setAttribute("position", new THREE.Float32BufferAttribute(snowPositions, 3));
 
         const snowMat = new THREE.PointsMaterial({
           color: 0xffffff,
-          size: 4.0,
+          size: 5.0,
           map: createSnowTexture(),
           transparent: true,
-          opacity: 0.9,
+          opacity: 0.85,
           depthWrite: false,
           fog: false,
           sizeAttenuation: true,
@@ -622,7 +659,14 @@
         snowMesh.visible = false;
         scene.add(snowMesh);
 
-        weatherParticles.snow = { mesh: snowMesh, positions: snowPositions, velocities: snowVelocities, drifts: snowDrifts, count: snowCount };
+        weatherParticles.snow = {
+          mesh: snowMesh,
+          positions: snowPositions,
+          velocities: snowVelocities,
+          drifts: snowDrifts,
+          sizes: snowSizes,
+          count: snowCount,
+        };
       };
 
       createRainSystem();
@@ -700,25 +744,40 @@
         }
       };
 
-      // 更新雨粒子动画
+      // 更新雨线段动画（LineSegments：每滴雨2个顶点同步下移）
       const updateRainParticles = () => {
         const rain = weatherParticles.rain;
         if (!rain || !rain.mesh.visible) return;
         const pos = rain.positions;
         const vel = rain.velocities;
+        const len = rain.lengths;
         for (let i = 0; i < rain.count; i++) {
-          pos[i * 3 + 1] -= vel[i];
-          pos[i * 3] += 0.1;
-          if (pos[i * 3 + 1] < 0) {
-            pos[i * 3 + 1] = 280 + Math.random() * 20;
-            pos[i * 3] = (Math.random() - 0.5) * 1200;
-            pos[i * 3 + 2] = (Math.random() - 0.5) * 1200;
+          // 顶点A（雨滴顶部）和顶点B（雨滴底部）同步下移
+          const topIdx = i * 6;
+          const botIdx = i * 6 + 3;
+          pos[topIdx + 1] -= vel[i];
+          pos[botIdx + 1] -= vel[i];
+          // 风向偏移
+          pos[topIdx] += 0.15;
+          pos[botIdx] += 0.15;
+
+          // 雨滴落出底部后重置到顶部
+          if (pos[botIdx + 1] < 0) {
+            const newX = (Math.random() - 0.5) * 1200;
+            const newZ = (Math.random() - 0.5) * 1200;
+            const newY = 280 + Math.random() * 20;
+            pos[topIdx] = newX + 0.15;
+            pos[topIdx + 1] = newY;
+            pos[topIdx + 2] = newZ;
+            pos[botIdx] = newX;
+            pos[botIdx + 1] = newY - len[i];
+            pos[botIdx + 2] = newZ;
           }
         }
         rain.mesh.geometry.attributes.position.needsUpdate = true;
       };
 
-      // 更新雪粒子动画
+      // 更新雪粒子动画（飘荡效果：正弦横漂 + 缓慢旋转 + 大小呼吸）
       const updateSnowParticles = (time) => {
         const snow = weatherParticles.snow;
         if (!snow || !snow.mesh.visible) return;
@@ -726,9 +785,15 @@
         const vel = snow.velocities;
         const drift = snow.drifts;
         for (let i = 0; i < snow.count; i++) {
+          // 缓慢下落
           pos[i * 3 + 1] -= vel[i];
-          pos[i * 3] += Math.sin(time * 1.5 + drift[i]) * 0.5;
-          pos[i * 3 + 2] += Math.cos(time * 1.0 + drift[i]) * 0.4;
+          // 正弦横漂：不同雪花有不同的漂移频率和幅度
+          const driftFreq = 0.8 + (drift[i] / (Math.PI * 2)) * 0.6;
+          const driftAmp = 0.4 + (drift[i] / (Math.PI * 2)) * 0.6;
+          pos[i * 3] += Math.sin(time * driftFreq + drift[i]) * driftAmp;
+          pos[i * 3 + 2] += Math.cos(time * driftFreq * 0.7 + drift[i] * 1.3) * driftAmp * 0.6;
+
+          // 雪花落出底部后重置到顶部
           if (pos[i * 3 + 1] < 0) {
             pos[i * 3 + 1] = 280 + Math.random() * 20;
             pos[i * 3] = (Math.random() - 0.5) * 1200;
