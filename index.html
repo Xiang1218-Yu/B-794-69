@@ -653,9 +653,11 @@
 
       // 闪电线和雷点光源
       let lightningMesh;
+      let lightningGlowMesh;
       let lightningLight;
       let isLightningActive = false;
       let lightningTimer = 0;
+      let lightningFlashDuration = 0;
 
       /**
        * 创建雨滴粒子系统
@@ -726,62 +728,124 @@
 
       /**
        * 创建闪电效果
+       * 使用管道几何体实现有宽度的闪电，并配合发光效果
        */
       const createLightning = () => {
-        const lightningGeometry = new THREE.BufferGeometry();
-        const lightningMaterial = new THREE.LineBasicMaterial({
-          color: 0xffffff,
+        const lightningMaterial = new THREE.MeshBasicMaterial({
+          color: 0xaaddff,
           transparent: true,
-          opacity: 0,
-          linewidth: 3
+          opacity: 0
         });
-        lightningMesh = new THREE.Line(lightningGeometry, lightningMaterial);
+        lightningMesh = new THREE.Mesh(new THREE.BufferGeometry(), lightningMaterial);
         lightningMesh.visible = false;
         townGroup.add(lightningMesh);
 
-        lightningLight = new THREE.PointLight(0xffffff, 0, 800);
-        lightningLight.position.set(0, 200, 0);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+          color: 0x88ccff,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        lightningGlowMesh = new THREE.Mesh(new THREE.BufferGeometry(), glowMaterial);
+        lightningGlowMesh.visible = false;
+        townGroup.add(lightningGlowMesh);
+
+        lightningLight = new THREE.PointLight(0xaaddff, 0, 1200);
+        lightningLight.position.set(0, 150, 0);
         scene.add(lightningLight);
       };
       createLightning();
 
       /**
-       * 触发生成一次闪电
+       * 生成闪电路径点
+       * @param {number} startX - 起始X坐标
+       * @param {number} startZ - 起始Z坐标
+       * @param {number} startY - 起始Y坐标
+       * @param {number} endY - 结束Y坐标
+       * @returns {THREE.Vector3[]} 路径点数组
        */
-      const triggerLightning = () => {
-        if (isLightningActive) return;
-        
-        isLightningActive = true;
-        lightningMesh.visible = true;
-
-        const startX = (Math.random() - 0.5) * 800;
-        const startZ = (Math.random() - 0.5) * 800;
-        const segments = 15;
+      const generateLightningPath = (startX, startZ, startY, endY) => {
+        const segments = 12;
         const points = [];
-
-        let currentY = 250;
+        let currentY = startY;
         let currentX = startX;
         let currentZ = startZ;
 
         points.push(new THREE.Vector3(currentX, currentY, currentZ));
 
         for (let i = 0; i < segments; i++) {
-          currentY -= 250 / segments;
-          currentX += (Math.random() - 0.5) * 60;
-          currentZ += (Math.random() - 0.5) * 60;
+          const progress = (i + 1) / segments;
+          currentY = startY - (startY - endY) * progress;
+          const offset = (1 - progress) * 50;
+          currentX += (Math.random() - 0.5) * offset;
+          currentZ += (Math.random() - 0.5) * offset;
           points.push(new THREE.Vector3(currentX, currentY, currentZ));
         }
 
-        lightningMesh.geometry.setFromPoints(points);
-        lightningMesh.material.opacity = 1;
-        lightningLight.intensity = 50 * weatherIntensity;
+        return points;
+      };
 
-        setTimeout(() => {
-          lightningMesh.material.opacity = 0;
-          lightningLight.intensity = 0;
-          lightningMesh.visible = false;
+      /**
+       * 根据路径点创建管道几何体
+       * @param {THREE.Vector3[]} points - 路径点
+       * @param {number} radius - 管道半径
+       * @returns {THREE.BufferGeometry} 管道几何体
+       */
+      const createTubeGeometry = (points, radius) => {
+        const curve = new THREE.CatmullRomCurve3(points);
+        return new THREE.TubeGeometry(curve, 20, radius, 8, false);
+      };
+
+      /**
+       * 触发生成一次闪电（包含多次闪烁效果）
+       */
+      const triggerLightning = () => {
+        if (isLightningActive) return;
+        
+        isLightningActive = true;
+        lightningMesh.visible = true;
+        lightningGlowMesh.visible = true;
+        lightningFlashDuration = 0;
+
+        const startX = (Math.random() - 0.5) * 600;
+        const startZ = (Math.random() - 0.5) * 600;
+        const points = generateLightningPath(startX, startZ, 280, 5);
+
+        lightningMesh.geometry.dispose();
+        lightningMesh.geometry = createTubeGeometry(points, 0.8);
+        
+        lightningGlowMesh.geometry.dispose();
+        lightningGlowMesh.geometry = createTubeGeometry(points, 3.5);
+
+        const midPoint = points[Math.floor(points.length / 2)];
+        lightningLight.position.copy(midPoint);
+      };
+
+      /**
+       * 更新闪电闪烁动画
+       * @param {number} deltaTime - 时间增量
+       */
+      const updateLightning = (deltaTime) => {
+        if (!isLightningActive) return;
+
+        lightningFlashDuration += deltaTime;
+        const flashSpeed = 10;
+        const intensity = Math.abs(Math.sin(lightningFlashDuration * flashSpeed)) * 
+                          Math.max(0, 1 - lightningFlashDuration / 0.7);
+        
+        lightningMesh.material.opacity = intensity * 0.95;
+        lightningGlowMesh.material.opacity = intensity * 0.5;
+        lightningLight.intensity = intensity * 100 * weatherIntensity;
+
+        if (lightningFlashDuration > 0.7) {
           isLightningActive = false;
-        }, 150);
+          lightningMesh.visible = false;
+          lightningGlowMesh.visible = false;
+          lightningLight.intensity = 0;
+          lightningMesh.material.opacity = 0;
+          lightningGlowMesh.material.opacity = 0;
+        }
       };
 
       /**
@@ -822,10 +886,12 @@
 
         if (currentWeather === 'thunder') {
           lightningTimer -= deltaTime;
-          if (lightningTimer <= 0 && Math.random() < weatherIntensity * 0.02) {
+          if (lightningTimer <= 0 && Math.random() < 0.15 + weatherIntensity * 0.2) {
             triggerLightning();
-            lightningTimer = 2 + Math.random() * 5;
+            lightningTimer = 1.5 + Math.random() * 4;
           }
+
+          updateLightning(deltaTime);
 
           const positions = rainParticles.geometry.attributes.position.array;
           for (let i = 0; i < positions.length / 3; i++) {
@@ -973,7 +1039,7 @@
       const getHeightColor = (height, maxHeight) => {
         const value = height / maxHeight;
         const color = new THREE.Color();
-        color.setHSL(0.6 - value * 0.6, 0.8, 0.3 + value * 0.3);
+        color.setHSL(0.6 - value * 0.6, 0.9, 0.4 + value * 0.4);
         return color;
       };
 
@@ -985,6 +1051,22 @@
         currentVizMode = mode;
         
         if (!wallInstancedMesh || buildingDataList.length === 0) return;
+
+        const isVizMode = mode === 'heat' || mode === 'height';
+        
+        if (isVizMode) {
+          wallInstancedMesh.material.color.set(0xffffff);
+          wallInstancedMesh.material.emissive.set(0xffffff);
+          wallInstancedMesh.material.emissiveIntensity = iNight.checked ? 0.8 : 0.4;
+        } else {
+          wallInstancedMesh.material.emissiveIntensity = 0;
+          wallInstancedMesh.material.emissive.set(0x000000);
+          if (iNight.checked) {
+            wallInstancedMesh.material.color.set(0x667799);
+          } else {
+            wallInstancedMesh.material.color.set(0xffffff);
+          }
+        }
 
         let maxHeight = 0;
         buildingDataList.forEach(data => {
@@ -1958,8 +2040,14 @@
           carInstancedMesh.material.emissiveIntensity = isNight ? 15 : 0;
 
         // 7. Walls Tint - 根据可视化模式决定
-        if (wallInstancedMesh && currentVizMode === 'normal') {
-          wallInstancedMesh.material.color.set(isNight ? 0x667799 : 0xffffff);
+        if (wallInstancedMesh) {
+          if (currentVizMode === 'normal') {
+            wallInstancedMesh.material.color.set(isNight ? 0x667799 : 0xffffff);
+            wallInstancedMesh.material.emissiveIntensity = 0;
+          } else {
+            wallInstancedMesh.material.color.set(0xffffff);
+            wallInstancedMesh.material.emissiveIntensity = isNight ? 0.8 : 0.4;
+          }
         }
 
         // 8. 重新应用天气效果（天气会受昼夜影响）
