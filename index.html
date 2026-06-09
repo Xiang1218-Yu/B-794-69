@@ -1969,12 +1969,6 @@
       // Execute build
       buildInstancedMeshes();
 
-      // 初始化可视化模式
-      updateVizMode('normal');
-
-      // 初始化交通信号灯显示
-      updateTrafficLightsDisplay();
-
       // --- UI & Controls ---
       const iScale = document.getElementById("input-scale");
       const iAngle = document.getElementById("input-angle");
@@ -2098,6 +2092,17 @@
         document.getElementById('val-signal').innerText = val + 's';
         signalCycleDuration = val;
       };
+
+      // ==================== 系统初始化 ====================
+      
+      // 初始化可视化模式
+      updateVizMode('normal');
+
+      // 初始化交通信号灯显示
+      updateTrafficLightsDisplay();
+
+      // 初始化天气效果
+      setWeather(currentWeather);
 
       // Fix Shadow Bias and Brightness
       sun.shadow.bias = -0.002;
