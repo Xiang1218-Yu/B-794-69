@@ -802,7 +802,7 @@
         ambientLight.intensity = systemState.isNight ? 0.5 : 1.0;
         renderer.toneMappingExposure = systemState.isNight ? 1.0 : 1.3;
 
-        // 根据天气类型设置效果
+        // 根据天气类型设置效果，白天和黑夜使用不同配色
         switch (weatherType) {
           case "clear":
             scene.fog.density = systemState.isNight ? 0.0012 : 0.0006;
@@ -813,40 +813,47 @@
           case "rain":
             rainSystem.visible = true;
             scene.fog.density = 0.002;
-            scene.fog.color.set(0x4a5568);
-            scene.background.set(0x4a5568);
-            sunLight.intensity = 2;
-            ambientLight.intensity = 0.8;
-            renderer.toneMappingExposure = 1.0;
+            scene.fog.color.set(systemState.isNight ? 0x0a0f18 : 0x4a5568);
+            scene.background.set(systemState.isNight ? 0x0a0f18 : 0x4a5568);
+            sunLight.intensity = systemState.isNight ? 0.3 : 2;
+            ambientLight.intensity = systemState.isNight ? 0.3 : 0.8;
+            renderer.toneMappingExposure = systemState.isNight ? 0.8 : 1.0;
             break;
             
           case "snow":
             snowSystem.visible = true;
-            scene.fog.density = 0.003;
-            scene.fog.color.set(0xcbd5e0);
-            scene.background.set(0xcbd5e0);
-            sunLight.intensity = 3;
-            ambientLight.intensity = 1.2;
-            renderer.toneMappingExposure = 1.2;
+            scene.fog.density = systemState.isNight ? 0.004 : 0.003;
+            scene.fog.color.set(systemState.isNight ? 0x1a1f2e : 0xcbd5e0);
+            scene.background.set(systemState.isNight ? 0x1a1f2e : 0xcbd5e0);
+            sunLight.intensity = systemState.isNight ? 0.4 : 3;
+            ambientLight.intensity = systemState.isNight ? 0.4 : 1.2;
+            renderer.toneMappingExposure = systemState.isNight ? 0.9 : 1.2;
+            if (systemState.isNight) {
+              snowSystem.material.color.set(0xaabbdd);
+              snowSystem.material.opacity = 0.7;
+            } else {
+              snowSystem.material.color.set(0xffffff);
+              snowSystem.material.opacity = 0.8;
+            }
             break;
             
           case "fog":
-            scene.fog.density = 0.008;
-            scene.fog.color.set(0x9ca3af);
-            scene.background.set(0x9ca3af);
-            sunLight.intensity = 1.5;
-            ambientLight.intensity = 0.6;
-            renderer.toneMappingExposure = 0.9;
+            scene.fog.density = systemState.isNight ? 0.01 : 0.008;
+            scene.fog.color.set(systemState.isNight ? 0x0d1117 : 0x9ca3af);
+            scene.background.set(systemState.isNight ? 0x0d1117 : 0x9ca3af);
+            sunLight.intensity = systemState.isNight ? 0.2 : 1.5;
+            ambientLight.intensity = systemState.isNight ? 0.25 : 0.6;
+            renderer.toneMappingExposure = systemState.isNight ? 0.7 : 0.9;
             break;
             
           case "thunder":
             rainSystem.visible = true;
             scene.fog.density = 0.004;
-            scene.fog.color.set(0x1f2937);
-            scene.background.set(0x1f2937);
-            sunLight.intensity = 1;
-            ambientLight.intensity = 0.4;
-            renderer.toneMappingExposure = 0.8;
+            scene.fog.color.set(systemState.isNight ? 0x070a10 : 0x1f2937);
+            scene.background.set(systemState.isNight ? 0x070a10 : 0x1f2937);
+            sunLight.intensity = systemState.isNight ? 0.2 : 1;
+            ambientLight.intensity = systemState.isNight ? 0.2 : 0.4;
+            renderer.toneMappingExposure = systemState.isNight ? 0.6 : 0.8;
             systemState.nextLightningTime = 1 + Math.random() * 3;
             break;
         }
