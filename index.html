@@ -266,6 +266,80 @@
         margin-top: 20px;
         letter-spacing: 2px;
       }
+
+      /* 新增：分组标题样式 */
+      .group-title {
+        font-size: 0.7rem;
+        color: var(--primary);
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        font-weight: 700;
+        margin: 20px 0 12px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(0, 242, 255, 0.2);
+      }
+      .group-title:first-child {
+        margin-top: 0;
+      }
+
+      /* 新增：天气模式选择按钮组 */
+      .button-group {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+      }
+      .mode-btn {
+        padding: 8px 10px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        color: var(--text-dim);
+        font-size: 0.7rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 500;
+      }
+      .mode-btn:hover {
+        background: rgba(0, 242, 255, 0.1);
+        border-color: rgba(0, 242, 255, 0.3);
+      }
+      .mode-btn.active {
+        background: linear-gradient(135deg, var(--primary) 0%, #fff 100%);
+        color: #000;
+        font-weight: 700;
+        border-color: var(--primary);
+        box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
+      }
+
+      /* 新增：信号灯控制面板 */
+      .traffic-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        margin-top: 8px;
+      }
+      .light-indicator {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #333;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+      }
+      .light-indicator.red {
+        background: #ff3333;
+        box-shadow: 0 0 10px #ff3333, inset 0 2px 4px rgba(255, 255, 255, 0.3);
+      }
+      .light-indicator.yellow {
+        background: #ffcc00;
+        box-shadow: 0 0 10px #ffcc00, inset 0 2px 4px rgba(255, 255, 255, 0.3);
+      }
+      .light-indicator.green {
+        background: #33ff33;
+        box-shadow: 0 0 10px #33ff33, inset 0 2px 4px rgba(255, 255, 255, 0.3);
+      }
     </style>
   </head>
   <body>
@@ -333,6 +407,73 @@
             <input type="checkbox" id="input-night" aria-label="黑夜模式" />
             <span class="slider"></span>
           </label>
+        </div>
+      </div>
+
+      <!-- 天气控制组 -->
+      <div class="group-title">天气效果</div>
+      <div class="control-group">
+        <div class="button-group" id="weather-buttons">
+          <button class="mode-btn active" data-weather="clear">晴天</button>
+          <button class="mode-btn" data-weather="rain">雨天</button>
+          <button class="mode-btn" data-weather="snow">雪天</button>
+          <button class="mode-btn" data-weather="fog">雾天</button>
+          <button class="mode-btn" data-weather="thunder">雷电</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>天气强度 <span class="value-display" id="val-weather">50%</span></label>
+        <input
+          type="range"
+          id="input-weather"
+          min="0"
+          max="100"
+          step="1"
+          value="50"
+          aria-label="天气强度"
+        />
+      </div>
+
+      <!-- 可视化模式 -->
+      <div class="group-title">数据可视化</div>
+      <div class="control-group">
+        <div class="button-group" id="viz-buttons">
+          <button class="mode-btn active" data-viz="normal">正常</button>
+          <button class="mode-btn" data-viz="heat">热力图</button>
+          <button class="mode-btn" data-viz="height">高度图</button>
+        </div>
+      </div>
+
+      <!-- 交通信号灯控制 -->
+      <div class="group-title">交通信号</div>
+      <div class="control-group">
+        <div class="toggle-container">
+          <span>启用信号灯</span>
+          <label class="switch">
+            <input type="checkbox" id="input-traffic" aria-label="启用信号灯" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>信号周期 <span class="value-display" id="val-signal">10s</span></label>
+        <input
+          type="range"
+          id="input-signal"
+          min="5"
+          max="30"
+          step="1"
+          value="10"
+          aria-label="信号周期"
+        />
+      </div>
+      <div class="traffic-status">
+        <span style="font-size: 0.7rem; color: var(--text-dim);">当前状态</span>
+        <div style="display: flex; gap: 6px;">
+          <div class="light-indicator" id="status-red"></div>
+          <div class="light-indicator" id="status-yellow"></div>
+          <div class="light-indicator" id="status-green"></div>
         </div>
       </div>
     </div>
@@ -493,9 +634,688 @@
       // --- Scene Objects Arrays ---
       const windows = [];
       const neons = [];
-      const trafficData = []; // Changed from traffic[] to store car data
+      const trafficData = [];
       const walls = [];
       const townGroup = new THREE.Group();
+
+      // ==================== 天气效果系统 ====================
+      // 当前天气类型和强度
+      let currentWeather = 'clear';
+      let weatherIntensity = 0.5;
+
+      // 雨滴粒子系统
+      let rainParticles;
+      let rainVelocities = [];
+
+      // 雪花粒子系统
+      let snowParticles;
+      let snowVelocities = [];
+
+      // 闪电线和雷点光源
+      let lightningMesh;
+      let lightningGlowMesh;
+      let lightningLight;
+      let isLightningActive = false;
+      let lightningTimer = 0;
+      let lightningFlashDuration = 0;
+
+      /**
+       * 创建雨滴粒子系统
+       */
+      const createRain = () => {
+        const rainCount = 8000;
+        const rainGeometry = new THREE.BufferGeometry();
+        const rainPositions = new Float32Array(rainCount * 3);
+        rainVelocities = new Float32Array(rainCount);
+
+        for (let i = 0; i < rainCount; i++) {
+          rainPositions[i * 3] = (Math.random() - 0.5) * 1200;
+          rainPositions[i * 3 + 1] = Math.random() * 300;
+          rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 1200;
+          rainVelocities[i] = 2 + Math.random() * 3;
+        }
+
+        rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+
+        const rainMaterial = new THREE.PointsMaterial({
+          color: 0xaaaaaa,
+          size: 0.8,
+          transparent: true,
+          opacity: 0.6,
+          depthWrite: false
+        });
+
+        rainParticles = new THREE.Points(rainGeometry, rainMaterial);
+        rainParticles.visible = false;
+        townGroup.add(rainParticles);
+      };
+      createRain();
+
+      /**
+       * 创建雪花粒子系统
+       */
+      const createSnow = () => {
+        const snowCount = 4000;
+        const snowGeometry = new THREE.BufferGeometry();
+        const snowPositions = new Float32Array(snowCount * 3);
+        snowVelocities = new Float32Array(snowCount * 2);
+
+        for (let i = 0; i < snowCount; i++) {
+          snowPositions[i * 3] = (Math.random() - 0.5) * 1200;
+          snowPositions[i * 3 + 1] = Math.random() * 300;
+          snowPositions[i * 3 + 2] = (Math.random() - 0.5) * 1200;
+          snowVelocities[i * 2] = 0.3 + Math.random() * 0.5;
+          snowVelocities[i * 2 + 1] = (Math.random() - 0.5) * 0.3;
+        }
+
+        snowGeometry.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+
+        const snowMaterial = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 2,
+          transparent: true,
+          opacity: 0.9,
+          depthWrite: false,
+          map: createStarTexture(),
+          blending: THREE.AdditiveBlending
+        });
+
+        snowParticles = new THREE.Points(snowGeometry, snowMaterial);
+        snowParticles.visible = false;
+        townGroup.add(snowParticles);
+      };
+      createSnow();
+
+      /**
+       * 创建闪电效果
+       * 使用管道几何体实现有宽度的闪电，并配合发光效果
+       */
+      const createLightning = () => {
+        const lightningMaterial = new THREE.MeshBasicMaterial({
+          color: 0xaaddff,
+          transparent: true,
+          opacity: 0
+        });
+        lightningMesh = new THREE.Mesh(new THREE.BufferGeometry(), lightningMaterial);
+        lightningMesh.visible = false;
+        townGroup.add(lightningMesh);
+
+        const glowMaterial = new THREE.MeshBasicMaterial({
+          color: 0x88ccff,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        lightningGlowMesh = new THREE.Mesh(new THREE.BufferGeometry(), glowMaterial);
+        lightningGlowMesh.visible = false;
+        townGroup.add(lightningGlowMesh);
+
+        lightningLight = new THREE.PointLight(0xaaddff, 0, 1200);
+        lightningLight.position.set(0, 150, 0);
+        scene.add(lightningLight);
+      };
+      createLightning();
+
+      /**
+       * 生成闪电路径点
+       * @param {number} startX - 起始X坐标
+       * @param {number} startZ - 起始Z坐标
+       * @param {number} startY - 起始Y坐标
+       * @param {number} endY - 结束Y坐标
+       * @returns {THREE.Vector3[]} 路径点数组
+       */
+      const generateLightningPath = (startX, startZ, startY, endY) => {
+        const segments = 12;
+        const points = [];
+        let currentY = startY;
+        let currentX = startX;
+        let currentZ = startZ;
+
+        points.push(new THREE.Vector3(currentX, currentY, currentZ));
+
+        for (let i = 0; i < segments; i++) {
+          const progress = (i + 1) / segments;
+          currentY = startY - (startY - endY) * progress;
+          const offset = (1 - progress) * 50;
+          currentX += (Math.random() - 0.5) * offset;
+          currentZ += (Math.random() - 0.5) * offset;
+          points.push(new THREE.Vector3(currentX, currentY, currentZ));
+        }
+
+        return points;
+      };
+
+      /**
+       * 根据路径点创建管道几何体
+       * @param {THREE.Vector3[]} points - 路径点
+       * @param {number} radius - 管道半径
+       * @returns {THREE.BufferGeometry} 管道几何体
+       */
+      const createTubeGeometry = (points, radius) => {
+        const curve = new THREE.CatmullRomCurve3(points);
+        return new THREE.TubeGeometry(curve, 20, radius, 8, false);
+      };
+
+      /**
+       * 触发生成一次闪电（包含多次闪烁效果）
+       */
+      const triggerLightning = () => {
+        if (isLightningActive) return;
+        
+        isLightningActive = true;
+        lightningMesh.visible = true;
+        lightningGlowMesh.visible = true;
+        lightningFlashDuration = 0;
+
+        const startX = (Math.random() - 0.5) * 600;
+        const startZ = (Math.random() - 0.5) * 600;
+        const points = generateLightningPath(startX, startZ, 280, 5);
+
+        lightningMesh.geometry.dispose();
+        lightningMesh.geometry = createTubeGeometry(points, 0.8);
+        
+        lightningGlowMesh.geometry.dispose();
+        lightningGlowMesh.geometry = createTubeGeometry(points, 3.5);
+
+        const midPoint = points[Math.floor(points.length / 2)];
+        lightningLight.position.copy(midPoint);
+      };
+
+      /**
+       * 更新闪电闪烁动画
+       * @param {number} deltaTime - 时间增量
+       */
+      const updateLightning = (deltaTime) => {
+        if (!isLightningActive) return;
+
+        lightningFlashDuration += deltaTime;
+        const flashSpeed = 10;
+        const intensity = Math.abs(Math.sin(lightningFlashDuration * flashSpeed)) * 
+                          Math.max(0, 1 - lightningFlashDuration / 0.7);
+        
+        lightningMesh.material.opacity = intensity * 0.95;
+        lightningGlowMesh.material.opacity = intensity * 0.5;
+        lightningLight.intensity = intensity * 100 * weatherIntensity;
+
+        if (lightningFlashDuration > 0.7) {
+          isLightningActive = false;
+          lightningMesh.visible = false;
+          lightningGlowMesh.visible = false;
+          lightningLight.intensity = 0;
+          lightningMesh.material.opacity = 0;
+          lightningGlowMesh.material.opacity = 0;
+        }
+      };
+
+      /**
+       * 更新天气效果
+       * @param {number} deltaTime - 时间增量
+       */
+      const updateWeather = (deltaTime) => {
+        const speedMultiplier = weatherIntensity * 2;
+
+        if (currentWeather === 'rain' && rainParticles) {
+          const positions = rainParticles.geometry.attributes.position.array;
+          for (let i = 0; i < positions.length / 3; i++) {
+            positions[i * 3 + 1] -= rainVelocities[i] * speedMultiplier;
+            
+            if (positions[i * 3 + 1] < 0) {
+              positions[i * 3 + 1] = 300;
+              positions[i * 3] = (Math.random() - 0.5) * 1200;
+              positions[i * 3 + 2] = (Math.random() - 0.5) * 1200;
+            }
+          }
+          rainParticles.geometry.attributes.position.needsUpdate = true;
+        }
+
+        if (currentWeather === 'snow' && snowParticles) {
+          const positions = snowParticles.geometry.attributes.position.array;
+          for (let i = 0; i < positions.length / 3; i++) {
+            positions[i * 3 + 1] -= snowVelocities[i * 2] * speedMultiplier;
+            positions[i * 3] += snowVelocities[i * 2 + 1] * speedMultiplier;
+            
+            if (positions[i * 3 + 1] < 0) {
+              positions[i * 3 + 1] = 300;
+              positions[i * 3] = (Math.random() - 0.5) * 1200;
+              positions[i * 3 + 2] = (Math.random() - 0.5) * 1200;
+            }
+          }
+          snowParticles.geometry.attributes.position.needsUpdate = true;
+        }
+
+        if (currentWeather === 'thunder') {
+          lightningTimer -= deltaTime;
+          if (lightningTimer <= 0 && Math.random() < 0.15 + weatherIntensity * 0.2) {
+            triggerLightning();
+            lightningTimer = 1.5 + Math.random() * 4;
+          }
+
+          updateLightning(deltaTime);
+
+          const positions = rainParticles.geometry.attributes.position.array;
+          for (let i = 0; i < positions.length / 3; i++) {
+            positions[i * 3 + 1] -= rainVelocities[i] * speedMultiplier * 1.5;
+            
+            if (positions[i * 3 + 1] < 0) {
+              positions[i * 3 + 1] = 300;
+              positions[i * 3] = (Math.random() - 0.5) * 1200;
+              positions[i * 3 + 2] = (Math.random() - 0.5) * 1200;
+            }
+          }
+          rainParticles.geometry.attributes.position.needsUpdate = true;
+        }
+      };
+
+      /**
+       * 设置天气类型
+       * @param {string} type - 天气类型：clear/rain/snow/fog/thunder
+       */
+      const setWeather = (type) => {
+        currentWeather = type;
+        
+        if (rainParticles) rainParticles.visible = false;
+        if (snowParticles) snowParticles.visible = false;
+        
+        let fogDensity = iNight.checked ? 0.0012 : 0.0006;
+        let ambientIntensity = iNight.checked ? 0.5 : 2.0;
+        let sunIntensity = iNight.checked ? 0.5 : 5.0;
+        let bgColor = iNight.checked ? 0x01010b : 0x87ceeb;
+
+        switch (type) {
+          case 'rain':
+            rainParticles.visible = true;
+            fogDensity = 0.002 * weatherIntensity;
+            ambientIntensity *= 0.7;
+            sunIntensity *= 0.5;
+            bgColor = iNight.checked ? 0x0a0a1a : 0x667788;
+            break;
+          case 'snow':
+            snowParticles.visible = true;
+            fogDensity = 0.0015 * weatherIntensity;
+            ambientIntensity *= 0.8;
+            sunIntensity *= 0.6;
+            bgColor = iNight.checked ? 0x1a1a2a : 0xc8d8e8;
+            break;
+          case 'fog':
+            fogDensity = 0.008 * weatherIntensity;
+            ambientIntensity *= 0.6;
+            sunIntensity *= 0.3;
+            bgColor = iNight.checked ? 0x1a1a2a : 0xaaaaaa;
+            break;
+          case 'thunder':
+            rainParticles.visible = true;
+            fogDensity = 0.003 * weatherIntensity;
+            ambientIntensity *= 0.4;
+            sunIntensity *= 0.2;
+            bgColor = iNight.checked ? 0x05050f : 0x334455;
+            break;
+          case 'clear':
+          default:
+            fogDensity = iNight.checked ? 0.0012 : 0.0006;
+            break;
+        }
+
+        scene.fog.density = fogDensity;
+        scene.background.set(bgColor);
+        scene.fog.color.set(bgColor);
+        ambient.intensity = ambientIntensity;
+        sun.intensity = sunIntensity;
+      };
+
+      /**
+       * 设置天气强度
+       * @param {number} intensity - 强度值 0-1
+       */
+      const setWeatherIntensity = (intensity) => {
+        weatherIntensity = intensity;
+        
+        if (rainParticles) {
+          rainParticles.material.opacity = 0.3 + intensity * 0.6;
+          rainParticles.material.size = 0.5 + intensity * 0.8;
+        }
+        if (snowParticles) {
+          snowParticles.material.opacity = 0.5 + intensity * 0.5;
+          snowParticles.material.size = 1 + intensity * 2;
+        }
+        
+        setWeather(currentWeather);
+      };
+
+      // ==================== 建筑数据系统 ====================
+      // 存储建筑模拟数据
+      const buildingDataList = [];
+      let currentVizMode = 'normal';
+
+      /**
+       * 生成建筑模拟数据
+       * @param {number} x - 建筑X坐标
+       * @param {number} z - 建筑Z坐标
+       * @param {number} height - 建筑高度
+       * @returns {object} 建筑数据对象
+       */
+      const generateBuildingData = (x, z, height) => {
+        const distFromCenter = Math.sqrt(x * x + z * z);
+        const heatValue = Math.max(0, 1 - distFromCenter / 500) + Math.random() * 0.3;
+        const populationDensity = Math.floor(height * 5 + Math.random() * 100);
+        
+        return {
+          id: buildingDataList.length,
+          x: x,
+          z: z,
+          height: height,
+          heatValue: Math.min(1, heatValue),
+          populationDensity: populationDensity,
+          floors: Math.floor(height / 8),
+          energyUsage: Math.floor(populationDensity * 0.8 + Math.random() * 50)
+        };
+      };
+
+      /**
+       * 根据热力值获取颜色
+       * @param {number} value - 热力值 0-1
+       * @returns {THREE.Color} 颜色
+       */
+      const getHeatColor = (value) => {
+        const color = new THREE.Color();
+        if (value < 0.25) {
+          color.setRGB(0, value * 4, 1);
+        } else if (value < 0.5) {
+          color.setRGB(0, 1, 1 - (value - 0.25) * 4);
+        } else if (value < 0.75) {
+          color.setRGB((value - 0.5) * 4, 1, 0);
+        } else {
+          color.setRGB(1, 1 - (value - 0.75) * 4, 0);
+        }
+        return color;
+      };
+
+      /**
+       * 根据高度值获取颜色
+       * @param {number} height - 建筑高度
+       * @param {number} maxHeight - 最大高度
+       * @returns {THREE.Color} 颜色
+       */
+      const getHeightColor = (height, maxHeight) => {
+        const value = height / maxHeight;
+        const color = new THREE.Color();
+        color.setHSL(0.6 - value * 0.6, 0.9, 0.4 + value * 0.4);
+        return color;
+      };
+
+      /**
+       * 更新可视化模式
+       * @param {string} mode - 可视化模式：normal/heat/height
+       */
+      const updateVizMode = (mode) => {
+        currentVizMode = mode;
+        
+        if (!wallInstancedMesh || buildingDataList.length === 0) return;
+
+        const isVizMode = mode === 'heat' || mode === 'height';
+        
+        if (isVizMode) {
+          wallInstancedMesh.material.color.set(0xffffff);
+          wallInstancedMesh.material.emissive.set(0xffffff);
+          wallInstancedMesh.material.emissiveIntensity = iNight.checked ? 0.8 : 0.4;
+        } else {
+          wallInstancedMesh.material.emissiveIntensity = 0;
+          wallInstancedMesh.material.emissive.set(0x000000);
+          if (iNight.checked) {
+            wallInstancedMesh.material.color.set(0x667799);
+          } else {
+            wallInstancedMesh.material.color.set(0xffffff);
+          }
+        }
+
+        let maxHeight = 0;
+        buildingDataList.forEach(data => {
+          if (data.height > maxHeight) maxHeight = data.height;
+        });
+
+        let wallIndex = 0;
+        buildingDataList.forEach((buildingData, buildingIndex) => {
+          const tiers = buildingData.tiers || 1;
+          
+          for (let t = 0; t < tiers; t++) {
+            let color;
+            if (mode === 'heat') {
+              color = getHeatColor(buildingData.heatValue);
+            } else if (mode === 'height') {
+              color = getHeightColor(buildingData.height, maxHeight);
+            } else {
+              const baseColorNum = palettes.glass[buildingIndex % palettes.glass.length];
+              color = new THREE.Color(baseColorNum);
+            }
+            
+            wallInstancedMesh.setColorAt(wallIndex, color);
+            wallIndex++;
+            
+            if (t === tiers - 1) {
+              wallInstancedMesh.setColorAt(wallIndex, new THREE.Color(0x222222));
+              wallIndex++;
+            }
+          }
+        });
+
+        wallInstancedMesh.instanceColor.needsUpdate = true;
+      };
+
+      // ==================== 交通信号灯系统 ====================
+      // 信号灯状态枚举
+      const TrafficLightState = {
+        RED: 'red',
+        YELLOW: 'yellow',
+        GREEN: 'green'
+      };
+
+      // 全局信号灯状态
+      let currentLightState = TrafficLightState.GREEN;
+      let trafficLightEnabled = true;
+      let signalCycleDuration = 10;
+      let signalTimer = 0;
+
+      // 信号灯实例化网格
+      let trafficLightPoleMesh;
+      let trafficLightRedMesh;
+      let trafficLightYellowMesh;
+      let trafficLightGreenMesh;
+
+      // 路口位置列表
+      const intersectionList = [];
+
+      /**
+       * 创建交通信号灯
+       */
+      const createTrafficLights = () => {
+        for (let i = -5; i <= 5; i++) {
+          for (let j = -5; j <= 5; j++) {
+            if (i !== 0) {
+              intersectionList.push({
+                x: i * 80,
+                z: j * 80,
+                horizontalState: TrafficLightState.GREEN,
+                verticalState: TrafficLightState.RED
+              });
+            }
+          }
+        }
+
+        const lightCount = intersectionList.length * 4;
+
+        const poleGeo = new THREE.CylinderGeometry(0.3, 0.3, 5);
+        const poleMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+        trafficLightPoleMesh = new THREE.InstancedMesh(poleGeo, poleMat, lightCount);
+        townGroup.add(trafficLightPoleMesh);
+
+        const lightGeo = new THREE.SphereGeometry(0.6, 8, 8);
+        
+        const redMat = new THREE.MeshStandardMaterial({
+          color: 0x330000,
+          emissive: 0xff0000,
+          emissiveIntensity: 0
+        });
+        trafficLightRedMesh = new THREE.InstancedMesh(lightGeo, redMat, lightCount);
+        townGroup.add(trafficLightRedMesh);
+
+        const yellowMat = new THREE.MeshStandardMaterial({
+          color: 0x333300,
+          emissive: 0xffff00,
+          emissiveIntensity: 0
+        });
+        trafficLightYellowMesh = new THREE.InstancedMesh(lightGeo, yellowMat, lightCount);
+        townGroup.add(trafficLightYellowMesh);
+
+        const greenMat = new THREE.MeshStandardMaterial({
+          color: 0x003300,
+          emissive: 0x00ff00,
+          emissiveIntensity: 0
+        });
+        trafficLightGreenMesh = new THREE.InstancedMesh(lightGeo, greenMat, lightCount);
+        townGroup.add(trafficLightGreenMesh);
+
+        const dummyLight = new THREE.Object3D();
+        let idx = 0;
+
+        intersectionList.forEach(intersection => {
+          const offsets = [
+            { dx: 8, dz: 8, rot: 0 },
+            { dx: -8, dz: 8, rot: Math.PI / 2 },
+            { dx: -8, dz: -8, rot: Math.PI },
+            { dx: 8, dz: -8, rot: -Math.PI / 2 }
+          ];
+
+          offsets.forEach(offset => {
+            dummyLight.position.set(
+              intersection.x + offset.dx,
+              2.5,
+              intersection.z + offset.dz
+            );
+            dummyLight.updateMatrix();
+            trafficLightPoleMesh.setMatrixAt(idx, dummyLight.matrix);
+
+            dummyLight.position.y = 5;
+            dummyLight.updateMatrix();
+            trafficLightRedMesh.setMatrixAt(idx, dummyLight.matrix);
+            trafficLightYellowMesh.setMatrixAt(idx, dummyLight.matrix);
+            trafficLightGreenMesh.setMatrixAt(idx, dummyLight.matrix);
+
+            idx++;
+          });
+        });
+      };
+      createTrafficLights();
+
+      /**
+       * 更新信号灯显示状态
+       */
+      const updateTrafficLightsDisplay = () => {
+        if (!trafficLightRedMesh || !trafficLightYellowMesh || !trafficLightGreenMesh) return;
+
+        const redIntensity = currentLightState === TrafficLightState.RED ? 2 : 0;
+        const yellowIntensity = currentLightState === TrafficLightState.YELLOW ? 2 : 0;
+        const greenIntensity = currentLightState === TrafficLightState.GREEN ? 2 : 0;
+
+        trafficLightRedMesh.material.emissiveIntensity = redIntensity;
+        trafficLightYellowMesh.material.emissiveIntensity = yellowIntensity;
+        trafficLightGreenMesh.material.emissiveIntensity = greenIntensity;
+
+        document.getElementById('status-red').className = 
+          'light-indicator' + (currentLightState === TrafficLightState.RED ? ' red' : '');
+        document.getElementById('status-yellow').className = 
+          'light-indicator' + (currentLightState === TrafficLightState.YELLOW ? ' yellow' : '');
+        document.getElementById('status-green').className = 
+          'light-indicator' + (currentLightState === TrafficLightState.GREEN ? ' green' : '');
+      };
+
+      /**
+       * 更新信号灯状态逻辑
+       * @param {number} deltaTime - 时间增量
+       */
+      const updateTrafficLights = (deltaTime) => {
+        if (!trafficLightEnabled) {
+          currentLightState = TrafficLightState.GREEN;
+          updateTrafficLightsDisplay();
+          return;
+        }
+
+        signalTimer += deltaTime;
+        const cyclePhase = signalTimer % signalCycleDuration;
+        const yellowDuration = 2;
+        const greenDuration = signalCycleDuration / 2 - yellowDuration;
+
+        if (cyclePhase < greenDuration) {
+          if (currentLightState !== TrafficLightState.GREEN) {
+            currentLightState = TrafficLightState.GREEN;
+            updateTrafficLightsDisplay();
+          }
+        } else if (cyclePhase < greenDuration + yellowDuration) {
+          if (currentLightState !== TrafficLightState.YELLOW) {
+            currentLightState = TrafficLightState.YELLOW;
+            updateTrafficLightsDisplay();
+          }
+        } else if (cyclePhase < signalCycleDuration - yellowDuration) {
+          if (currentLightState !== TrafficLightState.RED) {
+            currentLightState = TrafficLightState.RED;
+            updateTrafficLightsDisplay();
+          }
+        } else {
+          if (currentLightState !== TrafficLightState.YELLOW) {
+            currentLightState = TrafficLightState.YELLOW;
+            updateTrafficLightsDisplay();
+          }
+        }
+      };
+
+      /**
+       * 检查车辆是否应该在路口停车
+       * @param {object} car - 车辆数据对象
+       * @returns {boolean} 是否停车
+       */
+      const shouldCarStop = (car) => {
+        if (!trafficLightEnabled) return false;
+        if (currentLightState === TrafficLightState.GREEN) return false;
+
+        const stopDistance = 20;
+        const slowDistance = 40;
+
+        for (const intersection of intersectionList) {
+          let distToIntersection;
+          let approachingIntersection = false;
+
+          if (car.axis === 'x') {
+            distToIntersection = Math.abs(intersection.z - car.z);
+            if (distToIntersection < 10) {
+              const carToIntersectionX = intersection.x - car.x;
+              if (car.speed > 0 && carToIntersectionX > 0 && carToIntersectionX < stopDistance) {
+                return true;
+              }
+              if (car.speed < 0 && carToIntersectionX < 0 && carToIntersectionX > -stopDistance) {
+                return true;
+              }
+              if (Math.abs(carToIntersectionX) < slowDistance) {
+                car.speed = Math.max(0.1, Math.abs(car.speed) * 0.5) * Math.sign(car.speed);
+              }
+            }
+          } else {
+            distToIntersection = Math.abs(intersection.x - car.x);
+            if (distToIntersection < 10) {
+              const carToIntersectionZ = intersection.z - car.z;
+              if (car.speed > 0 && carToIntersectionZ > 0 && carToIntersectionZ < stopDistance) {
+                return true;
+              }
+              if (car.speed < 0 && carToIntersectionZ < 0 && carToIntersectionZ > -stopDistance) {
+                return true;
+              }
+              if (Math.abs(carToIntersectionZ) < slowDistance) {
+                car.speed = Math.max(0.1, Math.abs(car.speed) * 0.5) * Math.sign(car.speed);
+              }
+            }
+          }
+        }
+
+        return false;
+      };
 
       // Instanced Mesh References
       let carInstancedMesh;
@@ -867,6 +1687,11 @@
         const width = 15 + Math.random() * 10;
         const tiers = 1 + Math.floor(Math.random() * 3);
 
+        // 生成并存储建筑模拟数据
+        const buildingData = generateBuildingData(x, z, heightFactor);
+        buildingData.tiers = tiers;
+        buildingDataList.push(buildingData);
+
         const baseColorNum =
           palettes.glass[Math.floor(Math.random() * palettes.glass.length)];
         const baseColor = new THREE.Color(baseColorNum);
@@ -1208,11 +2033,76 @@
         if (carInstancedMesh)
           carInstancedMesh.material.emissiveIntensity = isNight ? 15 : 0;
 
-        // 7. Walls Tint
+        // 7. Walls Tint - 根据可视化模式决定
         if (wallInstancedMesh) {
-          wallInstancedMesh.material.color.set(isNight ? 0x667799 : 0xffffff);
+          if (currentVizMode === 'normal') {
+            wallInstancedMesh.material.color.set(isNight ? 0x667799 : 0xffffff);
+            wallInstancedMesh.material.emissiveIntensity = 0;
+          } else {
+            wallInstancedMesh.material.color.set(0xffffff);
+            wallInstancedMesh.material.emissiveIntensity = isNight ? 0.8 : 0.4;
+          }
         }
+
+        // 8. 重新应用天气效果（天气会受昼夜影响）
+        setWeather(currentWeather);
       };
+
+      // ==================== 新增UI事件处理 ====================
+      
+      // 天气模式按钮事件
+      const weatherButtons = document.querySelectorAll('#weather-buttons .mode-btn');
+      weatherButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          weatherButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          setWeather(btn.dataset.weather);
+        });
+      });
+
+      // 天气强度滑块事件
+      const iWeather = document.getElementById('input-weather');
+      iWeather.oninput = (e) => {
+        const val = parseInt(e.target.value);
+        document.getElementById('val-weather').innerText = val + '%';
+        setWeatherIntensity(val / 100);
+      };
+
+      // 可视化模式按钮事件
+      const vizButtons = document.querySelectorAll('#viz-buttons .mode-btn');
+      vizButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          vizButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          updateVizMode(btn.dataset.viz);
+        });
+      });
+
+      // 交通信号灯开关事件
+      const iTraffic = document.getElementById('input-traffic');
+      iTraffic.onchange = (e) => {
+        trafficLightEnabled = e.target.checked;
+        updateTrafficLightsDisplay();
+      };
+
+      // 信号周期滑块事件
+      const iSignal = document.getElementById('input-signal');
+      iSignal.oninput = (e) => {
+        const val = parseInt(e.target.value);
+        document.getElementById('val-signal').innerText = val + 's';
+        signalCycleDuration = val;
+      };
+
+      // ==================== 系统初始化 ====================
+      
+      // 初始化可视化模式
+      updateVizMode('normal');
+
+      // 初始化交通信号灯显示
+      updateTrafficLightsDisplay();
+
+      // 初始化天气效果
+      setWeather(currentWeather);
 
       // Fix Shadow Bias and Brightness
       sun.shadow.bias = -0.002;
@@ -1224,10 +2114,21 @@
       // --- Render Loop ---
       const clock = new THREE.Clock();
       const dummy = new THREE.Object3D();
+      
+      // 存储车辆原始速度，用于信号灯恢复
+      const originalCarSpeeds = [];
+      
       function animate() {
         requestAnimationFrame(animate);
         const time = clock.getElapsedTime();
+        const deltaTime = clock.getDelta();
         controls.update();
+
+        // 更新天气效果
+        updateWeather(deltaTime);
+
+        // 更新交通信号灯
+        updateTrafficLights(deltaTime);
 
         // Twinkle Stars (CPU-based vertex color update)
         if (stars && stars.visible) {
@@ -1243,19 +2144,46 @@
           stars.geometry.attributes.color.needsUpdate = true;
         }
 
-        // Animate Traffic (InstancedMesh)
+        // Animate Traffic (InstancedMesh) - 加入信号灯控制
         if (carInstancedMesh) {
-          trafficData.forEach((car) => {
+          // 初始化原始速度
+          if (originalCarSpeeds.length === 0) {
+            trafficData.forEach(car => {
+              originalCarSpeeds.push(car.speed);
+            });
+          }
+
+          trafficData.forEach((car, index) => {
+            // 检查是否需要停车
+            const shouldStop = shouldCarStop(car);
+            
+            if (shouldStop) {
+              car.speed *= 0.9;
+              if (Math.abs(car.speed) < 0.05) {
+                car.speed = 0;
+              }
+            } else {
+              // 恢复速度
+              if (car.speed === 0 || Math.abs(car.speed) < Math.abs(originalCarSpeeds[index])) {
+                car.speed += originalCarSpeeds[index] * 0.1 * deltaTime * 60;
+                if (Math.abs(car.speed) > Math.abs(originalCarSpeeds[index])) {
+                  car.speed = originalCarSpeeds[index];
+                }
+              }
+            }
+
             if (car.axis === "x") {
               car.x += car.speed;
               if (car.x > 500) car.x = -500;
+              if (car.x < -500) car.x = 500;
               dummy.position.set(car.x, 0.6, car.z);
-              dummy.rotation.set(0, 0, 0);
+              dummy.rotation.set(0, car.speed >= 0 ? 0 : Math.PI, 0);
             } else {
               car.z += car.speed;
               if (car.z > 500) car.z = -500;
+              if (car.z < -500) car.z = 500;
               dummy.position.set(car.x, 0.6, car.z);
-              dummy.rotation.set(0, Math.PI / 2, 0);
+              dummy.rotation.set(0, car.speed >= 0 ? Math.PI / 2 : -Math.PI / 2, 0);
             }
             dummy.updateMatrix();
             carInstancedMesh.setMatrixAt(car.index, dummy.matrix);
@@ -1274,10 +2202,6 @@
             if (Math.random() > 0.98)
               n.material.emissiveIntensity = 2 + Math.random() * 15;
           });
-
-          // Twinkle stars (only if visible)
-          // starGroup handles rotation, size animation removed or needs update for sprites if desired
-          // Sprites use scale, not material.size. For now just remove the error.
         }
 
         composer.render();
