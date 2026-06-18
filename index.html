@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>3D 城市场景</title>
+    <title>3D 城市智能模拟系统</title>
     <style>
       :root {
         --primary: #00f2ff;
@@ -42,7 +42,9 @@
         position: absolute;
         top: 20px;
         right: 20px;
-        width: 260px;
+        width: 280px;
+        max-height: 90vh;
+        overflow-y: auto;
         background: var(--glass);
         -webkit-backdrop-filter: blur(24px);
         backdrop-filter: blur(24px);
@@ -54,6 +56,17 @@
           0 10px 30px rgba(0, 0, 0, 0.5),
           inset 0 0 0 1px rgba(255, 255, 255, 0.05);
         transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .overlay::-webkit-scrollbar {
+        width: 4px;
+      }
+      .overlay::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .overlay::-webkit-scrollbar-thumb {
+        background: var(--primary);
+        border-radius: 2px;
       }
 
       .title-section {
@@ -82,7 +95,7 @@
       .control-group {
         margin-bottom: 16px;
       }
-      label {
+      .control-label {
         display: flex;
         justify-content: space-between;
         font-size: 0.75rem;
@@ -97,7 +110,6 @@
         text-shadow: var(--glow);
       }
 
-      /* Custom Range Slider */
       input[type="range"] {
         width: 100%;
         height: 4px;
@@ -181,6 +193,68 @@
         transform: translateX(22px);
       }
 
+      .weather-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .weather-btn {
+        padding: 8px 12px;
+        border: 1px solid var(--glass-border);
+        background: rgba(255, 255, 255, 0.05);
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.7rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-align: center;
+      }
+      .weather-btn:hover {
+        background: rgba(0, 242, 255, 0.2);
+        border-color: var(--primary);
+      }
+      .weather-btn.active {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+        border-color: var(--primary);
+        box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
+      }
+
+      .viz-buttons {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .viz-btn {
+        padding: 6px 8px;
+        border: 1px solid var(--glass-border);
+        background: rgba(255, 255, 255, 0.05);
+        color: white;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.65rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-align: center;
+      }
+      .viz-btn:hover {
+        background: rgba(0, 242, 255, 0.2);
+        border-color: var(--primary);
+      }
+      .viz-btn.active {
+        background: linear-gradient(135deg, var(--accent) 0%, var(--secondary) 100%);
+        border-color: var(--accent);
+        box-shadow: 0 0 15px rgba(255, 0, 122, 0.4);
+      }
+
+      .section-divider {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--glass-border), transparent);
+        margin: 16px 0;
+      }
+
       .loading-screen {
         position: fixed;
         top: 0;
@@ -213,13 +287,26 @@
         }
       }
 
-      /* Mobile Support */
+      .lightning-flash {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: white;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 999;
+        transition: opacity 0.05s ease;
+      }
+
       @media (max-width: 768px) {
         .overlay {
           top: auto;
           right: 0;
           bottom: 0;
           width: 100%;
+          max-height: 70vh;
           border-radius: 32px 32px 0 0;
           padding: 32px 24px 40px 24px;
           border-left: none;
@@ -271,18 +358,21 @@
   <body>
     <div class="loading-screen" id="loading-screen">
       <span class="loader"></span>
-      <div class="loading-text">初始化 3D 城市...</div>
+      <div class="loading-text">初始化 3D 城市智能模拟系统...</div>
     </div>
+
+    <div class="lightning-flash" id="lightning-flash"></div>
 
     <div id="canvas-container"></div>
 
     <div class="overlay">
       <div class="title-section">
-        <h1>3D 城市控制面板</h1>
+        <h1>🏙️ 城市智能模拟系统</h1>
+        <div class="subtitle">Weather · Traffic · Data Visualization</div>
       </div>
 
       <div class="control-group">
-        <label
+        <label class="control-label"
           >模型大小 <span class="value-display" id="val-scale">1.0</span></label
         >
         <input
@@ -297,7 +387,7 @@
       </div>
 
       <div class="control-group">
-        <label
+        <label class="control-label"
           >旋转角度 <span class="value-display" id="val-angle">0°</span></label
         >
         <input
@@ -312,7 +402,7 @@
       </div>
 
       <div class="control-group">
-        <label
+        <label class="control-label"
           >相机缩放 <span class="value-display" id="val-zoom">45</span></label
         >
         <input
@@ -328,12 +418,63 @@
 
       <div class="control-group">
         <div class="toggle-container">
-          <span>黑夜模式</span>
+          <span>🌙 黑夜模式</span>
           <label class="switch">
             <input type="checkbox" id="input-night" aria-label="黑夜模式" />
             <span class="slider"></span>
           </label>
         </div>
+      </div>
+
+      <div class="section-divider"></div>
+
+      <div class="control-group">
+        <label class="control-label">🌤️ 天气效果</label>
+        <div class="weather-buttons">
+          <button class="weather-btn active" data-weather="clear">☀️ 晴天</button>
+          <button class="weather-btn" data-weather="rain">🌧️ 雨天</button>
+          <button class="weather-btn" data-weather="snow">❄️ 雪天</button>
+          <button class="weather-btn" data-weather="fog">🌫️ 雾天</button>
+          <button class="weather-btn" data-weather="thunder" style="grid-column: span 2;">⚡ 雷暴</button>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+
+      <div class="control-group">
+        <label class="control-label">📊 数据可视化</label>
+        <div class="viz-buttons">
+          <button class="viz-btn active" data-viz="none">正常</button>
+          <button class="viz-btn" data-viz="heatmap">热力图</button>
+          <button class="viz-btn" data-viz="height">高度图</button>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+
+      <div class="control-group">
+        <div class="toggle-container">
+          <span>🚦 自动信号灯</span>
+          <label class="switch">
+            <input type="checkbox" id="input-auto-traffic" checked aria-label="自动信号灯" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label"
+          >信号灯周期 <span class="value-display" id="val-traffic-timer">5s</span></label
+        >
+        <input
+          type="range"
+          id="input-traffic-timer"
+          min="2"
+          max="15"
+          step="1"
+          value="5"
+          aria-label="信号灯周期"
+        />
       </div>
     </div>
 
@@ -359,7 +500,20 @@
       import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
       import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass";
 
-      // --- Setup ---
+      // ==================== 系统状态管理 ====================
+      const systemState = {
+        currentWeather: "clear",
+        currentVizMode: "none",
+        isNight: false,
+        autoTrafficLight: true,
+        trafficLightTimer: 5,
+        trafficLightPhase: 0,
+        lightningTimer: 0,
+        nextLightningTime: 0,
+        buildingData: []
+      };
+
+      // ==================== 场景初始化 ====================
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0xaaccff);
       scene.fog = new THREE.FogExp2(0xaaccff, 0.001);
@@ -368,7 +522,7 @@
         45,
         window.innerWidth / window.innerHeight,
         0.1,
-        5000, // Increased far plane to see distant stars
+        5000
       );
       camera.position.set(150, 150, 150);
 
@@ -378,13 +532,11 @@
       });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-
-      // Cinematic Tone Mapping (Sunny Day Balancing)
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.3; // Default Sunny Day
+      renderer.toneMappingExposure = 1.3;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFShadowMap; // Faster than PCFSoftShadowMap
+      renderer.shadowMap.type = THREE.PCFShadowMap;
       document
         .getElementById("canvas-container")
         .appendChild(renderer.domElement);
@@ -394,35 +546,35 @@
       controls.dampingFactor = 0.05;
       controls.maxPolarAngle = Math.PI / 2.1;
 
-      // --- Post Processing (Kefir Glow) ---
+      // ==================== 后期处理效果 ====================
       const composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
       const bloomPass = new UnrealBloomPass(
-        new THREE.Vector2(window.innerWidth / 4, window.innerHeight / 4), // 1/4 resolution for max performance
-        0.05, // Ultra-low for Day to keep edges sharp
+        new THREE.Vector2(window.innerWidth / 4, window.innerHeight / 4),
+        0.05,
         0.4,
-        0.85,
+        0.85
       );
       bloomPass.threshold = 0.25;
-      bloomPass.radius = 0.4; // Reduced to prevent close-up glare
+      bloomPass.radius = 0.4;
       composer.addPass(bloomPass);
 
-      // --- Lighting (Sunny Day Setup) ---
-      const ambient = new THREE.AmbientLight(0xffffff, 1.0);
-      scene.add(ambient);
-      const sun = new THREE.DirectionalLight(0xffffff, 4.5);
-      sun.position.set(200, 400, 100);
-      sun.castShadow = true;
-      sun.shadow.mapSize.width = 512;
-      sun.shadow.mapSize.height = 512;
-      sun.shadow.camera.left = -500;
-      sun.shadow.camera.right = 500;
-      sun.shadow.camera.top = 500;
-      sun.shadow.camera.bottom = -500;
-      scene.add(sun);
+      // ==================== 光照系统 ====================
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+      scene.add(ambientLight);
+      const sunLight = new THREE.DirectionalLight(0xffffff, 4.5);
+      sunLight.position.set(200, 400, 100);
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.width = 512;
+      sunLight.shadow.mapSize.height = 512;
+      sunLight.shadow.camera.left = -500;
+      sunLight.shadow.camera.right = 500;
+      sunLight.shadow.camera.top = 500;
+      sunLight.shadow.camera.bottom = -500;
+      scene.add(sunLight);
 
-      // --- Stars System ---
-      let stars;
+      // ==================== 星空系统 ====================
+      let stars, starPhases = [];
       const createStarTexture = () => {
         const canvas = document.createElement("canvas");
         canvas.width = 64;
@@ -431,15 +583,13 @@
         const r = 32;
         const grad = ctx.createRadialGradient(r, r, 0, r, r, r);
         grad.addColorStop(0, "rgba(255, 255, 255, 1)");
-        grad.addColorStop(0.1, "rgba(255, 255, 255, 0.8)"); // Smaller core
-        grad.addColorStop(0.4, "rgba(255, 255, 255, 0.2)"); // Soft falloff
+        grad.addColorStop(0.1, "rgba(255, 255, 255, 0.8)");
+        grad.addColorStop(0.4, "rgba(255, 255, 255, 0.2)");
         grad.addColorStop(1.0, "rgba(255, 255, 255, 0)");
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, 64, 64);
         return new THREE.CanvasTexture(canvas);
       };
-
-      let starPhases = [];
 
       const createStars = () => {
         const geo = new THREE.BufferGeometry();
@@ -447,42 +597,31 @@
         const colors = [];
         const count = 4000;
         starPhases = new Float32Array(count);
-
         for (let i = 0; i < count; i++) {
-          // Push stars much further away to be true background
-          // Radius from 3000 to 5000
           const r = 3000 + Math.random() * 2000;
           const theta = Math.random() * Math.PI * 2;
           const phi = Math.acos(2 * Math.random() - 1);
-
-          const x = r * Math.sin(phi) * Math.cos(theta);
-          const y = r * Math.sin(phi) * Math.sin(theta);
-          const z = r * Math.cos(phi);
-
-          pos.push(x, y, z);
-
-          // Init color (white)
+          pos.push(
+            r * Math.sin(phi) * Math.cos(theta),
+            r * Math.sin(phi) * Math.sin(theta),
+            r * Math.cos(phi)
+          );
           colors.push(1, 1, 1);
-
-          // Init random phase for twinkling
           starPhases[i] = Math.random() * Math.PI * 2;
         }
-
         geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
         geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-
         const mat = new THREE.PointsMaterial({
-          size: 25.0, // Smaller and sharper
+          size: 25.0,
           map: createStarTexture(),
           transparent: true,
           opacity: 1.0,
-          vertexColors: true, // Enable vertex color twinkling
+          vertexColors: true,
           depthWrite: false,
           fog: false,
           blending: THREE.AdditiveBlending,
           sizeAttenuation: true,
         });
-
         stars = new THREE.Points(geo, mat);
         stars.renderOrder = -1;
         stars.visible = false;
@@ -490,61 +629,288 @@
       };
       createStars();
 
-      // --- Scene Objects Arrays ---
+      // ==================== 天气粒子系统 ====================
+      let rainSystem, snowSystem, rainGeo, snowGeo;
+      const rainCount = 8000;
+      const snowCount = 4000;
+
+      // 创建雨粒子纹理
+      const createRainTexture = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 16;
+        canvas.height = 64;
+        const ctx = canvas.getContext("2d");
+        const grad = ctx.createLinearGradient(0, 0, 0, 64);
+        grad.addColorStop(0, "rgba(174, 194, 224, 0)");
+        grad.addColorStop(0.5, "rgba(174, 194, 224, 0.8)");
+        grad.addColorStop(1, "rgba(174, 194, 224, 1)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(7, 0, 2, 64);
+        return new THREE.CanvasTexture(canvas);
+      };
+
+      // 创建雪粒子纹理
+      const createSnowTexture = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 32;
+        canvas.height = 32;
+        const ctx = canvas.getContext("2d");
+        const r = 16;
+        const grad = ctx.createRadialGradient(r, r, 0, r, r, r);
+        grad.addColorStop(0, "rgba(255, 255, 255, 1)");
+        grad.addColorStop(0.3, "rgba(255, 255, 255, 0.8)");
+        grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(r, r, r, 0, Math.PI * 2);
+        ctx.fill();
+        return new THREE.CanvasTexture(canvas);
+      };
+
+      // 初始化天气系统
+      const initWeatherSystems = () => {
+        // 雨滴系统
+        rainGeo = new THREE.BufferGeometry();
+        const rainPositions = new Float32Array(rainCount * 3);
+        const rainVelocities = new Float32Array(rainCount);
+        for (let i = 0; i < rainCount; i++) {
+          rainPositions[i * 3] = (Math.random() - 0.5) * 1200;
+          rainPositions[i * 3 + 1] = Math.random() * 500;
+          rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 1200;
+          rainVelocities[i] = 2 + Math.random() * 3;
+        }
+        rainGeo.setAttribute("position", new THREE.BufferAttribute(rainPositions, 3));
+        rainGeo.userData.velocities = rainVelocities;
+        const rainMat = new THREE.PointsMaterial({
+          color: 0xaec2e0,
+          size: 1.5,
+          map: createRainTexture(),
+          transparent: true,
+          opacity: 0.6,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        });
+        rainSystem = new THREE.Points(rainGeo, rainMat);
+        rainSystem.visible = false;
+        scene.add(rainSystem);
+
+        // 雪花系统
+        snowGeo = new THREE.BufferGeometry();
+        const snowPositions = new Float32Array(snowCount * 3);
+        const snowVelocities = [];
+        for (let i = 0; i < snowCount; i++) {
+          snowPositions[i * 3] = (Math.random() - 0.5) * 1200;
+          snowPositions[i * 3 + 1] = Math.random() * 400;
+          snowPositions[i * 3 + 2] = (Math.random() - 0.5) * 1200;
+          snowVelocities.push({
+            y: 0.5 + Math.random() * 1,
+            x: (Math.random() - 0.5) * 0.3,
+            z: (Math.random() - 0.5) * 0.3
+          });
+        }
+        snowGeo.setAttribute("position", new THREE.BufferAttribute(snowPositions, 3));
+        snowGeo.userData.velocities = snowVelocities;
+        const snowMat = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 3,
+          map: createSnowTexture(),
+          transparent: true,
+          opacity: 0.8,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        });
+        snowSystem = new THREE.Points(snowGeo, snowMat);
+        snowSystem.visible = false;
+        scene.add(snowSystem);
+      };
+      initWeatherSystems();
+
+      // 更新天气效果
+      const updateWeather = (deltaTime) => {
+        // 更新雨滴
+        if (rainSystem && rainSystem.visible) {
+          const positions = rainGeo.attributes.position.array;
+          const velocities = rainGeo.userData.velocities;
+          for (let i = 0; i < rainCount; i++) {
+            positions[i * 3 + 1] -= velocities[i] * deltaTime * 60;
+            if (positions[i * 3 + 1] < 0) {
+              positions[i * 3 + 1] = 400 + Math.random() * 100;
+            }
+          }
+          rainGeo.attributes.position.needsUpdate = true;
+        }
+
+        // 更新雪花
+        if (snowSystem && snowSystem.visible) {
+          const positions = snowGeo.attributes.position.array;
+          const velocities = snowGeo.userData.velocities;
+          for (let i = 0; i < snowCount; i++) {
+            positions[i * 3] += velocities[i].x * deltaTime * 30;
+            positions[i * 3 + 1] -= velocities[i].y * deltaTime * 30;
+            positions[i * 3 + 2] += velocities[i].z * deltaTime * 30;
+            positions[i * 3] += Math.sin(Date.now() * 0.001 + i) * 0.02;
+            if (positions[i * 3 + 1] < 0) {
+              positions[i * 3 + 1] = 300 + Math.random() * 100;
+            }
+          }
+          snowGeo.attributes.position.needsUpdate = true;
+        }
+
+        // 雷暴闪电逻辑
+        if (systemState.currentWeather === "thunder") {
+          systemState.lightningTimer += deltaTime;
+          if (systemState.lightningTimer >= systemState.nextLightningTime) {
+            triggerLightning();
+            systemState.lightningTimer = 0;
+            systemState.nextLightningTime = 2 + Math.random() * 5;
+          }
+        }
+      };
+
+      // 触发闪电效果
+      const triggerLightning = () => {
+        const flashEl = document.getElementById("lightning-flash");
+        const flashIntensity = 0.3 + Math.random() * 0.5;
+        
+        flashEl.style.opacity = flashIntensity;
+        sunLight.intensity = 10;
+        ambientLight.intensity = 3;
+
+        setTimeout(() => {
+          flashEl.style.opacity = "0";
+          setTimeout(() => {
+            flashEl.style.opacity = (flashIntensity * 0.5).toString();
+            setTimeout(() => {
+              flashEl.style.opacity = "0";
+              sunLight.intensity = systemState.isNight ? 0.5 : 5.0;
+              ambientLight.intensity = systemState.isNight ? 0.5 : 2.0;
+            }, 50);
+          }, 80);
+        }, 50);
+      };
+
+      // 切换天气
+      const setWeather = (weatherType) => {
+        systemState.currentWeather = weatherType;
+        
+        // 重置所有天气元素
+        if (rainSystem) rainSystem.visible = false;
+        if (snowSystem) snowSystem.visible = false;
+        
+        // 恢复默认光照
+        sunLight.intensity = systemState.isNight ? 0.5 : 4.5;
+        ambientLight.intensity = systemState.isNight ? 0.5 : 1.0;
+        renderer.toneMappingExposure = systemState.isNight ? 1.0 : 1.3;
+
+        // 根据天气类型设置效果，白天和黑夜使用不同配色
+        switch (weatherType) {
+          case "clear":
+            scene.fog.density = systemState.isNight ? 0.0012 : 0.0006;
+            scene.fog.color.set(systemState.isNight ? 0x01010b : 0xaaccff);
+            scene.background.set(systemState.isNight ? 0x01010b : 0xaaccff);
+            break;
+            
+          case "rain":
+            rainSystem.visible = true;
+            scene.fog.density = 0.002;
+            scene.fog.color.set(systemState.isNight ? 0x0a0f18 : 0x4a5568);
+            scene.background.set(systemState.isNight ? 0x0a0f18 : 0x4a5568);
+            sunLight.intensity = systemState.isNight ? 0.3 : 2;
+            ambientLight.intensity = systemState.isNight ? 0.3 : 0.8;
+            renderer.toneMappingExposure = systemState.isNight ? 0.8 : 1.0;
+            break;
+            
+          case "snow":
+            snowSystem.visible = true;
+            scene.fog.density = systemState.isNight ? 0.004 : 0.003;
+            scene.fog.color.set(systemState.isNight ? 0x1a1f2e : 0xcbd5e0);
+            scene.background.set(systemState.isNight ? 0x1a1f2e : 0xcbd5e0);
+            sunLight.intensity = systemState.isNight ? 0.4 : 3;
+            ambientLight.intensity = systemState.isNight ? 0.4 : 1.2;
+            renderer.toneMappingExposure = systemState.isNight ? 0.9 : 1.2;
+            if (systemState.isNight) {
+              snowSystem.material.color.set(0xaabbdd);
+              snowSystem.material.opacity = 0.7;
+            } else {
+              snowSystem.material.color.set(0xffffff);
+              snowSystem.material.opacity = 0.8;
+            }
+            break;
+            
+          case "fog":
+            scene.fog.density = systemState.isNight ? 0.01 : 0.008;
+            scene.fog.color.set(systemState.isNight ? 0x0d1117 : 0x9ca3af);
+            scene.background.set(systemState.isNight ? 0x0d1117 : 0x9ca3af);
+            sunLight.intensity = systemState.isNight ? 0.2 : 1.5;
+            ambientLight.intensity = systemState.isNight ? 0.25 : 0.6;
+            renderer.toneMappingExposure = systemState.isNight ? 0.7 : 0.9;
+            break;
+            
+          case "thunder":
+            rainSystem.visible = true;
+            scene.fog.density = 0.004;
+            scene.fog.color.set(systemState.isNight ? 0x070a10 : 0x1f2937);
+            scene.background.set(systemState.isNight ? 0x070a10 : 0x1f2937);
+            sunLight.intensity = systemState.isNight ? 0.2 : 1;
+            ambientLight.intensity = systemState.isNight ? 0.2 : 0.4;
+            renderer.toneMappingExposure = systemState.isNight ? 0.6 : 0.8;
+            systemState.nextLightningTime = 1 + Math.random() * 3;
+            break;
+        }
+
+        // 更新按钮状态
+        document.querySelectorAll(".weather-btn").forEach(btn => {
+          btn.classList.toggle("active", btn.dataset.weather === weatherType);
+        });
+      };
+
+      // ==================== 场景对象数组 ====================
       const windows = [];
       const neons = [];
-      const trafficData = []; // Changed from traffic[] to store car data
+      const trafficData = [];
       const walls = [];
       const townGroup = new THREE.Group();
 
-      // Instanced Mesh References
       let carInstancedMesh;
-      let lampStemWithMesh; // "Stem"
-      let lampBulbWithMesh; // "Bulb"
+      let lampStemWithMesh;
+      let lampBulbWithMesh;
+      let wallInstancedMesh;
+      let windowInstancedMesh;
+      let treeInstancedMesh;
+      let leafInstancedMesh;
+      let trafficLightMeshes = [];
       scene.add(townGroup);
 
-      // Materials - Much Lighter Palette
+      // 材质调色板
       const palettes = {
         glass: [0xbbddff, 0xccddee, 0xeeeeee, 0x88aacc],
         metal: 0x888888,
         glow: 0x00f2ff,
       };
 
-      // --- Materials Shared ---
       const roadMat = new THREE.MeshStandardMaterial({
         color: 0x222222,
         roughness: 0.8,
       });
-      const grassMat = new THREE.MeshStandardMaterial({
-        color: 0x2d4c2d,
-        roughness: 1,
-      });
 
-      // --- Texture Factory (Procedural textures inspired by textures.com) ---
+      // ==================== 纹理工厂 ====================
       const textureFactory = {
         memo: {},
         getFacade: (color) => {
-          // We now only use a generic white facade and tint it with InstancedMesh colors
-          // But keeping this for compatibility if needed, though we will override usage
           if (textureFactory.memo["generic"])
             return textureFactory.memo["generic"];
-
           const canvas = document.createElement("canvas");
           canvas.width = 512;
           canvas.height = 512;
           const ctx = canvas.getContext("2d");
-          // White background for tinting
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, 512, 512);
-
-          // Add some grunge/noise
           for (let i = 0; i < 1500; i++) {
-            ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.1})`; // Slightly stronger noise
+            ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.1})`;
             ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
           }
-          // Panel lines
           ctx.strokeStyle = "rgba(0,0,0,0.2)";
-          ctx.lineWidth = 2; // Thicker lines for visibility at scale
+          ctx.lineWidth = 2;
           for (let i = 0; i < 512; i += 64) {
             ctx.beginPath();
             ctx.moveTo(i, 0);
@@ -566,20 +932,14 @@
           canvas.width = 128;
           canvas.height = 128;
           const ctx = canvas.getContext("2d");
-          // Multi-toned leaf sprite
           ctx.fillStyle = "#2d5a27";
           for (let i = 0; i < 40; i++) {
             ctx.beginPath();
             const x = 30 + Math.random() * 70;
             const y = 30 + Math.random() * 70;
             ctx.ellipse(
-              x,
-              y,
-              15 + Math.random() * 10,
-              8 + Math.random() * 5,
-              Math.random() * Math.PI,
-              0,
-              Math.PI * 2,
+              x, y, 15 + Math.random() * 10, 8 + Math.random() * 5,
+              Math.random() * Math.PI, 0, Math.PI * 2
             );
             ctx.fillStyle = i % 2 === 0 ? "#1a3a1a" : "#4caf50";
             ctx.fill();
@@ -620,21 +980,198 @@
           ctx.font = "bold 40px Outfit, sans-serif";
           ctx.textAlign = "center";
           ctx.fillText(text, 128, 75);
-          const tex = new THREE.CanvasTexture(canvas);
-          return tex;
+          return new THREE.CanvasTexture(canvas);
         },
       };
 
-      // --- City Grid & Traffic ---
+      // ==================== 交通信号灯系统 ====================
+      const intersectionPositions = [];
+      const trafficLights = [];
+
+      // 创建交通信号灯
+      const createTrafficLights = () => {
+        // 收集所有路口位置
+        for (let i = -5; i <= 5; i++) {
+          for (let j = -5; j <= 5; j++) {
+            if (i === 0) continue; // 跳过河流
+            intersectionPositions.push({ x: i * 80, z: j * 80 });
+          }
+        }
+
+        // 在每个路口创建信号灯
+        intersectionPositions.forEach((intersection, idx) => {
+          const lightGroup = new THREE.Group();
+          
+          // 信号灯支柱
+          const poleGeo = new THREE.CylinderGeometry(0.3, 0.3, 8);
+          const poleMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+          const pole = new THREE.Mesh(poleGeo, poleMat);
+          pole.position.set(0, 4, 0);
+          lightGroup.add(pole);
+
+          // 信号灯箱 - 水平方向
+          const boxGeo = new THREE.BoxGeometry(3, 4, 1);
+          const boxMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+          
+          // X方向信号灯（控制Z轴车流）
+          const lightBoxX = new THREE.Mesh(boxGeo, boxMat);
+          lightBoxX.position.set(10, 7, 0);
+          lightGroup.add(lightBoxX);
+
+          // Z方向信号灯（控制X轴车流）
+          const lightBoxZ = new THREE.Mesh(boxGeo, boxMat);
+          lightBoxZ.position.set(0, 7, 10);
+          lightBoxZ.rotation.y = Math.PI / 2;
+          lightGroup.add(lightBoxZ);
+
+          // 灯泡材质
+          const redMat = new THREE.MeshStandardMaterial({
+            color: 0xff0000,
+            emissive: 0xff0000,
+            emissiveIntensity: 0
+          });
+          const yellowMat = new THREE.MeshStandardMaterial({
+            color: 0xffff00,
+            emissive: 0xffff00,
+            emissiveIntensity: 0
+          });
+          const greenMat = new THREE.MeshStandardMaterial({
+            color: 0x00ff00,
+            emissive: 0x00ff00,
+            emissiveIntensity: 0
+          });
+
+          // 创建灯泡 - X方向灯
+          const bulbGeo = new THREE.SphereGeometry(0.5, 8, 8);
+          
+          // 红灯
+          const redBulbX = new THREE.Mesh(bulbGeo, redMat.clone());
+          redBulbX.position.set(10, 8, 0);
+          lightGroup.add(redBulbX);
+          
+          // 黄灯
+          const yellowBulbX = new THREE.Mesh(bulbGeo, yellowMat.clone());
+          yellowBulbX.position.set(10, 7, 0);
+          lightGroup.add(yellowBulbX);
+          
+          // 绿灯
+          const greenBulbX = new THREE.Mesh(bulbGeo, greenMat.clone());
+          greenBulbX.position.set(10, 6, 0);
+          lightGroup.add(greenBulbX);
+
+          // 创建灯泡 - Z方向灯
+          const redBulbZ = new THREE.Mesh(bulbGeo, redMat.clone());
+          redBulbZ.position.set(0, 8, 10);
+          lightGroup.add(redBulbZ);
+          
+          const yellowBulbZ = new THREE.Mesh(bulbGeo, yellowMat.clone());
+          yellowBulbZ.position.set(0, 7, 10);
+          lightGroup.add(yellowBulbZ);
+          
+          const greenBulbZ = new THREE.Mesh(bulbGeo, greenMat.clone());
+          greenBulbZ.position.set(0, 6, 10);
+          lightGroup.add(greenBulbZ);
+
+          lightGroup.position.set(intersection.x - 15, 0, intersection.z - 15);
+          townGroup.add(lightGroup);
+
+          trafficLights.push({
+            group: lightGroup,
+            position: intersection,
+            xDirection: {
+              red: redBulbX,
+              yellow: yellowBulbX,
+              green: greenBulbX,
+              state: "red"
+            },
+            zDirection: {
+              red: redBulbZ,
+              yellow: yellowBulbZ,
+              green: greenBulbZ,
+              state: "green"
+            }
+          });
+        });
+      };
+
+      // 更新交通信号灯状态
+      const updateTrafficLights = (deltaTime) => {
+        if (!systemState.autoTrafficLight) return;
+
+        const cycleDuration = systemState.trafficLightTimer;
+        systemState.trafficLightPhase += deltaTime;
+
+        let xState, zState;
+        const phase = systemState.trafficLightPhase % (cycleDuration * 2 + 2);
+
+        if (phase < cycleDuration) {
+          xState = "red";
+          zState = "green";
+        } else if (phase < cycleDuration + 1) {
+          xState = "red";
+          zState = "yellow";
+        } else if (phase < cycleDuration * 2 + 1) {
+          xState = "green";
+          zState = "red";
+        } else {
+          xState = "yellow";
+          zState = "red";
+        }
+
+        trafficLights.forEach(light => {
+          // X方向灯
+          light.xDirection.red.material.emissiveIntensity = xState === "red" ? 2 : 0;
+          light.xDirection.yellow.material.emissiveIntensity = xState === "yellow" ? 2 : 0;
+          light.xDirection.green.material.emissiveIntensity = xState === "green" ? 2 : 0;
+          light.xDirection.state = xState;
+
+          // Z方向灯
+          light.zDirection.red.material.emissiveIntensity = zState === "red" ? 2 : 0;
+          light.zDirection.yellow.material.emissiveIntensity = zState === "yellow" ? 2 : 0;
+          light.zDirection.green.material.emissiveIntensity = zState === "green" ? 2 : 0;
+          light.zDirection.state = zState;
+        });
+      };
+
+      // 检查车辆是否应该停车
+      const shouldCarStop = (car) => {
+        if (!systemState.autoTrafficLight) return false;
+
+        for (const light of trafficLights) {
+          const distToIntersection = 25;
+          const stopDistance = 15;
+          
+          if (car.axis === "x") {
+            // 检查Z轴方向信号灯
+            if (Math.abs(car.z - light.position.z) < distToIntersection) {
+              const distX = car.x - light.position.x;
+              if (distX > -stopDistance - 10 && distX < -stopDistance + 5) {
+                return light.zDirection.state === "red" || light.zDirection.state === "yellow";
+              }
+            }
+          } else {
+            // 检查X轴方向信号灯
+            if (Math.abs(car.x - light.position.x) < distToIntersection) {
+              const distZ = car.z - light.position.z;
+              if (distZ > -stopDistance - 10 && distZ < -stopDistance + 5) {
+                return light.xDirection.state === "red" || light.xDirection.state === "yellow";
+              }
+            }
+          }
+        }
+        return false;
+      };
+
+      // ==================== 城市网格与交通 ====================
       const createCityGrid = () => {
         const grassTex = textureFactory.getGrass();
-        grassTex.repeat.set(40, 40); // Higher density for the larger area
+        grassTex.repeat.set(40, 40);
         const ground = new THREE.Mesh(
           new THREE.PlaneGeometry(1200, 1200),
           new THREE.MeshStandardMaterial({
             map: grassTex,
             roughness: 1,
-            polygonOffset: true, // Key Fix: Push ground back to prevent z-fighting
+            polygonOffset: true,
             polygonOffsetFactor: 1,
             polygonOffsetUnits: 1,
           }),
@@ -645,25 +1182,26 @@
 
         for (let i = -5; i <= 5; i++) {
           const pos = i * 80;
-          // Skip Horizontal Road at center (River is here)
           if (i !== 0) {
             const rH = new THREE.Mesh(
               new THREE.PlaneGeometry(1000, 12),
               roadMat,
             );
             rH.rotation.x = -Math.PI / 2;
-            rH.position.set(0, 0.3, pos); // Lifted to 0.3
+            rH.position.set(0, 0.3, pos);
             townGroup.add(rH);
           }
-
           const rV = new THREE.Mesh(new THREE.PlaneGeometry(12, 1000), roadMat);
           rV.rotation.x = -Math.PI / 2;
-          rV.position.set(pos, 0.3, 0); // Lifted to 0.3
+          rV.position.set(pos, 0.3, 0);
           townGroup.add(rV);
         }
 
-        // --- Traffic Streams (InstancedMesh) ---
-        const carCount = 11 * 6 * 2; // Rows * Cols * 2
+        // 创建交通信号灯
+        createTrafficLights();
+
+        // 车流系统
+        const carCount = 11 * 6 * 2;
         const carGeometry = new THREE.BoxGeometry(4, 0.8, 2);
         const carMaterial = new THREE.MeshStandardMaterial({
           color: 0xffffff,
@@ -690,18 +1228,18 @@
         for (let i = -5; i <= 5; i++) {
           const pos = i * 80;
           for (let j = 0; j < 6; j++) {
-            // Horizontal Traffic (X-axis)
-            // Skip cars on the river (pos = 0)
             if (i !== 0) {
               const colorX = new THREE.Color(
                 carColors[Math.floor(Math.random() * carColors.length)],
               );
               const carXData = {
                 speed: 0.5 + Math.random(),
+                baseSpeed: 0.5 + Math.random(),
                 axis: "x",
                 x: (Math.random() - 0.5) * 1000,
                 z: pos + (Math.random() > 0.5 ? 3 : -3),
                 index: idx,
+                stopped: false
               };
               trafficData.push(carXData);
 
@@ -713,16 +1251,17 @@
               idx++;
             }
 
-            // Vertical Traffic (Z-axis) - Rotated 90 degrees
             const colorZ = new THREE.Color(
               carColors[Math.floor(Math.random() * carColors.length)],
             );
             const carZData = {
               speed: 0.5 + Math.random(),
+              baseSpeed: 0.5 + Math.random(),
               axis: "z",
               x: pos + (Math.random() > 0.5 ? 3 : -3),
               z: (Math.random() - 0.5) * 1000,
               index: idx,
+              stopped: false
             };
             trafficData.push(carZData);
 
@@ -737,17 +1276,14 @@
       };
       createCityGrid();
 
-      // --- Street Lamps ---
+      // ==================== 路灯系统 ====================
       const createStreetLamps = () => {
-        const lampCount = 121; // 11x11 grid (-5 to 5)
-
-        // Instanced Stems
+        const lampCount = 121;
         const stemGeo = new THREE.CylinderGeometry(0.2, 0.2, 12);
         const stemMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
         lampStemWithMesh = new THREE.InstancedMesh(stemGeo, stemMat, lampCount);
         townGroup.add(lampStemWithMesh);
 
-        // Instanced Bulbs
         const bulbGeo = new THREE.SphereGeometry(0.8, 8, 8);
         const bulbMat = new THREE.MeshStandardMaterial({
           color: 0x000000,
@@ -760,36 +1296,23 @@
 
         const dummy = new THREE.Object3D();
         let idx = 0;
-
         for (let i = -5; i <= 5; i++) {
           for (let j = -5; j <= 5; j++) {
-            // Calculate absolute position
             const x = i * 80 + 10;
             const z = j * 80 + 10;
-
-            // 1. Stem (Y=6)
             dummy.position.set(x, 6, z);
-            dummy.rotation.set(0, 0, 0);
-            dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             lampStemWithMesh.setMatrixAt(idx, dummy.matrix);
-
-            // 2. Bulb (Y=12)
             dummy.position.set(x, 12, z);
-            dummy.rotation.set(0, 0, 0);
-            dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             lampBulbWithMesh.setMatrixAt(idx, dummy.matrix);
-
-            // 3. PointLight REMOVED for performance (100+ lights kills FPS)
-            // Bloom on the bulb is sufficient for the "glow" look.
             idx++;
           }
         }
       };
       createStreetLamps();
 
-      // --- City Waterway & Bridges ---
+      // ==================== 水道与桥梁 ====================
       const createWaterway = () => {
         const waterGeo = new THREE.PlaneGeometry(1000, 60);
         const waterMat = new THREE.MeshStandardMaterial({
@@ -799,23 +1322,22 @@
         });
         const water = new THREE.Mesh(waterGeo, waterMat);
         water.rotation.x = -Math.PI / 2;
-        water.position.set(0, 0.2, 0); // Lifted to 0.2
+        water.position.set(0, 0.2, 0);
         townGroup.add(water);
 
-        // Bridges
         for (let i = -5; i <= 5; i++) {
           const pos = i * 80;
           const bridge = new THREE.Mesh(
             new THREE.BoxGeometry(12, 1, 60),
             new THREE.MeshStandardMaterial({ color: 0x222222 }),
           );
-          bridge.position.set(pos, 0.6, 0); // Lifted to 0.6
+          bridge.position.set(pos, 0.6, 0);
           townGroup.add(bridge);
         }
       };
       createWaterway();
 
-      // --- Instance Data Collectors ---
+      // ==================== 实例数据收集 ====================
       const instanceData = {
         trees: [],
         leaves: [],
@@ -824,31 +1346,21 @@
       };
       const dummy3D = new THREE.Object3D();
 
-      // --- Urban Parks (Instance Data Collection) ---
+      // ==================== 城市公园 ====================
       const createParks = () => {
         const parkCoords = [
           { x: 160, z: 160 },
           { x: -160, z: -160 },
         ];
-
-        // Configs for trees
-        // Trunk: Cylinder(0.2, 0.3, 5). Base Pivot is center, so Y=2.5 puts base at 0.
-        // We will invoke scaling.
-
         parkCoords.forEach((coord) => {
           for (let i = 0; i < 15; i++) {
             const x = coord.x + (Math.random() - 0.5) * 60;
             const z = coord.z + (Math.random() - 0.5) * 60;
             const scale = 0.8 + Math.random() * 0.4;
-
-            // 1. Trunk
             dummy3D.position.set(x, 2.5 * scale, z);
-            dummy3D.rotation.set(0, 0, 0);
             dummy3D.scale.set(scale, scale, scale);
             dummy3D.updateMatrix();
             instanceData.trees.push(dummy3D.matrix.clone());
-
-            // 2. Leaves (3 planes per tree)
             for (let j = 0; j < 3; j++) {
               dummy3D.position.set(x, 7 * scale, z);
               dummy3D.rotation.set(0, (Math.PI / 3) * j, 0);
@@ -861,20 +1373,20 @@
       };
       createParks();
 
-      // --- Skyscraper Assembler with Instanced Data ---
+      // ==================== 摩天大楼生成器 ====================
       const createSkyscraper = (x, z) => {
         const heightFactor = 40 + Math.random() * 120;
         const width = 15 + Math.random() * 10;
         const tiers = 1 + Math.floor(Math.random() * 3);
-
-        const baseColorNum =
-          palettes.glass[Math.floor(Math.random() * palettes.glass.length)];
+        const baseColorNum = palettes.glass[Math.floor(Math.random() * palettes.glass.length)];
         const baseColor = new THREE.Color(baseColorNum);
-
-        // Billboard Config
         const hasNeon = Math.random() > 0.7;
         const neonY = heightFactor * 0.6;
-        const neonZ = 0;
+
+        // 生成模拟建筑数据：人口密度、能耗、高度
+        const populationDensity = Math.random();
+        const energyConsumption = Math.random();
+        const buildingHeight = heightFactor;
 
         let currentY = 0;
         let currentWidth = width;
@@ -882,19 +1394,16 @@
         for (let t = 0; t < tiers; t++) {
           const tH = heightFactor / tiers;
           const tW = currentWidth;
-
-          // --- WALLS (Instanced) ---
-          // BoxGeometry(1,1,1) -> Scale(tW, tH, tW) -> Translate(x, currentY + tH/2, z)
           dummy3D.position.set(x, currentY + tH / 2, z);
-          dummy3D.rotation.set(0, 0, 0);
           dummy3D.scale.set(tW, tH, tW);
           dummy3D.updateMatrix();
           instanceData.walls.push({
             matrix: dummy3D.matrix.clone(),
             color: baseColor,
+            originalColor: baseColor.clone(),
+            data: { populationDensity, energyConsumption, height: buildingHeight }
           });
 
-          // Add roof detail (HVAC) - Simplified as a smaller wall block with dark color
           if (t === tiers - 1) {
             dummy3D.position.set(x, currentY + tH + 2, z);
             dummy3D.scale.set(5, 4, 5);
@@ -902,48 +1411,39 @@
             instanceData.walls.push({
               matrix: dummy3D.matrix.clone(),
               color: new THREE.Color(0x222222),
+              originalColor: new THREE.Color(0x222222),
+              data: { populationDensity: 0, energyConsumption: 0, height: buildingHeight }
             });
           }
 
-          // --- WINDOWS (Instanced) ---
           const windowRows = Math.floor(tH / 8);
           const windowCols = Math.floor(tW / 5);
-
           for (let r = 0; r < windowRows; r++) {
             for (let c = 0; c < windowCols; c++) {
               if (Math.random() > 0.4) {
                 const winY = currentY + (r + 1) * 8;
-                const winZ_local = (c - (windowCols - 1) / 2) * 5;
-
-                // Rotations are handled by rotating the dummy
-                // 1. Front (+Z relative to building)
-                // World Pos: x + 0, winY, z + tW/2
-                dummy3D.position.set(x + winZ_local, winY, z + tW / 2 + 0.1);
+                const winZLocal = (c - (windowCols - 1) / 2) * 5;
+                
+                dummy3D.position.set(x + winZLocal, winY, z + tW / 2 + 0.1);
                 dummy3D.rotation.set(0, 0, 0);
                 dummy3D.scale.set(1, 1, 1);
                 dummy3D.updateMatrix();
                 instanceData.windows.push(dummy3D.matrix.clone());
 
-                // 2. Back (-Z)
-                dummy3D.position.set(x + winZ_local, winY, z - tW / 2 - 0.1);
-                dummy3D.rotation.set(0, Math.PI, 0); // 180 deg
+                dummy3D.position.set(x + winZLocal, winY, z - tW / 2 - 0.1);
+                dummy3D.rotation.set(0, Math.PI, 0);
                 dummy3D.updateMatrix();
                 instanceData.windows.push(dummy3D.matrix.clone());
 
-                // 3. Right (+X)
-                const isNeonZone =
-                  hasNeon &&
-                  Math.abs(winY - neonY) < 5 &&
-                  Math.abs(winZ_local - neonZ) < 8;
+                const isNeonZone = hasNeon && Math.abs(winY - neonY) < 5 && Math.abs(winZLocal) < 8;
                 if (!isNeonZone) {
-                  dummy3D.position.set(x + tW / 2 + 0.1, winY, z + winZ_local);
+                  dummy3D.position.set(x + tW / 2 + 0.1, winY, z + winZLocal);
                   dummy3D.rotation.set(0, Math.PI / 2, 0);
                   dummy3D.updateMatrix();
                   instanceData.windows.push(dummy3D.matrix.clone());
                 }
 
-                // 4. Left (-X)
-                dummy3D.position.set(x - tW / 2 - 0.1, winY, z + winZ_local);
+                dummy3D.position.set(x - tW / 2 - 0.1, winY, z + winZLocal);
                 dummy3D.rotation.set(0, -Math.PI / 2, 0);
                 dummy3D.updateMatrix();
                 instanceData.windows.push(dummy3D.matrix.clone());
@@ -954,7 +1454,6 @@
           currentWidth *= 0.85;
         }
 
-        // --- Neon Billboards ---
         if (hasNeon) {
           const neonTexts = ["CITY", "NEON", "GLOW", "CORE", "TECH", "KFR"];
           const neonCols = ["#00f2ff", "#ff00ff", "#ffff00", "#00ff00"];
@@ -979,7 +1478,6 @@
           neons.push(board);
         }
 
-        // --- Base Greenery (Instanced) ---
         const plantCount = 8 + Math.floor(Math.random() * 10);
         for (let i = 0; i < plantCount; i++) {
           const angle = Math.random() * Math.PI * 2;
@@ -987,86 +1485,65 @@
           const px = x + Math.cos(angle) * dist;
           const pz = z + Math.sin(angle) * dist;
           const scale = 0.5 + Math.random();
-
           const plantType = Math.random();
+          
           if (plantType > 0.4) {
-            // Bush (2 cross planes)
-            // Plane 1
             dummy3D.position.set(px, 2 * scale, pz);
             dummy3D.rotation.set(0, 0, 0);
-            dummy3D.scale.set(0.5 * scale, 0.5 * scale, 0.5 * scale); // Bush planes were 4x4, leaf planes are 8x8. Adjust scale.
-            // Original bush was Plane(4,4). Original tree leaf was Plane(8,8).
-            // So bushes are half size of tree leaves.
-            // Tree leaves scale ~1.0. Bush scale ~0.5.
+            dummy3D.scale.set(0.5 * scale, 0.5 * scale, 0.5 * scale);
             dummy3D.updateMatrix();
             instanceData.leaves.push(dummy3D.matrix.clone());
-
-            // Plane 2
             dummy3D.rotation.set(0, Math.PI / 2, 0);
             dummy3D.updateMatrix();
             instanceData.leaves.push(dummy3D.matrix.clone());
           } else {
-            // Small Tree
-            // Trunk
-            dummy3D.position.set(px, 2 * scale, pz); // approx position
-            dummy3D.rotation.set(0, 0, 0);
-            dummy3D.scale.set(0.5 * scale, 0.8 * scale, 0.5 * scale); // Thinner/Shorter
+            dummy3D.position.set(px, 2 * scale, pz);
+            dummy3D.scale.set(0.5 * scale, 0.8 * scale, 0.5 * scale);
             dummy3D.updateMatrix();
             instanceData.trees.push(dummy3D.matrix.clone());
-
-            // Canopy
             for (let j = 0; j < 3; j++) {
               dummy3D.position.set(px, 5 * scale, pz);
               dummy3D.rotation.set(0, (Math.PI / 3) * j, 0);
-              dummy3D.scale.set(0.6 * scale, 0.6 * scale, 0.6 * scale); // Smaller leaves
+              dummy3D.scale.set(0.6 * scale, 0.6 * scale, 0.6 * scale);
               dummy3D.updateMatrix();
               instanceData.leaves.push(dummy3D.matrix.clone());
             }
           }
         }
+
+        systemState.buildingData.push({
+          position: { x, z },
+          height: buildingHeight,
+          populationDensity,
+          energyConsumption
+        });
       };
 
-      // --- Skyscraper Spawn Loop (Avoiding River & Parks) ---
+      // 生成摩天大楼
       for (let i = 0; i < 180; i++) {
-        let x =
-          (Math.floor(Math.random() * 11) - 5) * 80 +
-          (Math.random() > 0.5 ? 25 : -25);
-        let z =
-          (Math.floor(Math.random() * 11) - 5) * 80 +
-          (Math.random() - 0.5) * 40;
-
-        // Avoid Parks
-        if (
-          (Math.abs(x - 160) < 50 && Math.abs(z - 160) < 50) ||
-          (Math.abs(x + 160) < 50 && Math.abs(z + 160) < 50)
-        )
+        let x = (Math.floor(Math.random() * 11) - 5) * 80 + (Math.random() > 0.5 ? 25 : -25);
+        let z = (Math.floor(Math.random() * 11) - 5) * 80 + (Math.random() - 0.5) * 40;
+        
+        if ((Math.abs(x - 160) < 50 && Math.abs(z - 160) < 50) ||
+            (Math.abs(x + 160) < 50 && Math.abs(z + 160) < 50))
           continue;
 
-        // Shift buildings away from river (Z=0 area)
         if (Math.abs(z) < 45) z += z >= 0 ? 50 : -50;
         createSkyscraper(x, z);
       }
 
-      // --- Finalize Scene (Build Instanced Meshes) ---
-      let windowInstancedMesh;
-      let wallInstancedMesh;
-      let treeInstancedMesh;
-      let leafInstancedMesh;
-
+      // ==================== 构建实例化网格 ====================
       const buildInstancedMeshes = () => {
-        // 1. Walls
         if (instanceData.walls.length > 0) {
           const geom = new THREE.BoxGeometry(1, 1, 1);
           const mat = new THREE.MeshStandardMaterial({
-            map: textureFactory.getFacade("#ffffff"), // use generic
+            map: textureFactory.getFacade("#ffffff"),
             color: 0xffffff,
             metalness: 0.2,
             roughness: 0.8,
           });
           wallInstancedMesh = new THREE.InstancedMesh(
-            geom,
-            mat,
-            instanceData.walls.length,
+            geom, mat, instanceData.walls.length
           );
           instanceData.walls.forEach((data, i) => {
             wallInstancedMesh.setMatrixAt(i, data.matrix);
@@ -1077,7 +1554,6 @@
           townGroup.add(wallInstancedMesh);
         }
 
-        // 2. Windows
         if (instanceData.windows.length > 0) {
           const geom = new THREE.PlaneGeometry(2, 3);
           const mat = new THREE.MeshStandardMaterial({
@@ -1088,9 +1564,7 @@
             emissiveIntensity: 0,
           });
           windowInstancedMesh = new THREE.InstancedMesh(
-            geom,
-            mat,
-            instanceData.windows.length,
+            geom, mat, instanceData.windows.length
           );
           instanceData.windows.forEach((matrix, i) => {
             windowInstancedMesh.setMatrixAt(i, matrix);
@@ -1098,14 +1572,11 @@
           townGroup.add(windowInstancedMesh);
         }
 
-        // 3. Trees (Trunks)
         if (instanceData.trees.length > 0) {
-          const geom = new THREE.CylinderGeometry(0.2, 0.3, 5, 5); // reduced segments
+          const geom = new THREE.CylinderGeometry(0.2, 0.3, 5, 5);
           const mat = new THREE.MeshStandardMaterial({ color: 0x3d2b1f });
           treeInstancedMesh = new THREE.InstancedMesh(
-            geom,
-            mat,
-            instanceData.trees.length,
+            geom, mat, instanceData.trees.length
           );
           instanceData.trees.forEach((matrix, i) => {
             treeInstancedMesh.setMatrixAt(i, matrix);
@@ -1115,22 +1586,19 @@
           townGroup.add(treeInstancedMesh);
         }
 
-        // 4. Leaves
         if (instanceData.leaves.length > 0) {
           const geom = new THREE.PlaneGeometry(8, 8);
           const mat = new THREE.MeshStandardMaterial({
             map: textureFactory.getLeaf(),
-            color: 0x88bb44, // Add base green color to boost visibility
+            color: 0x88bb44,
             transparent: true,
             alphaTest: 0.5,
             side: THREE.DoubleSide,
-            emissive: 0x002200, // Slight emissive to prevent total darkness in shadows
-            emissiveIntensity: 0.2, // Boost brightness
+            emissive: 0x002200,
+            emissiveIntensity: 0.2,
           });
           leafInstancedMesh = new THREE.InstancedMesh(
-            geom,
-            mat,
-            instanceData.leaves.length,
+            geom, mat, instanceData.leaves.length
           );
           instanceData.leaves.forEach((matrix, i) => {
             leafInstancedMesh.setMatrixAt(i, matrix);
@@ -1141,101 +1609,179 @@
         }
       };
 
-      // Execute build
       buildInstancedMeshes();
 
-      // --- UI & Controls ---
-      const iScale = document.getElementById("input-scale");
-      const iAngle = document.getElementById("input-angle");
-      const iZoom = document.getElementById("input-zoom");
-      const iNight = document.getElementById("input-night");
+      // ==================== 数据可视化：热力图/高度图 ====================
+      const setVisualizationMode = (mode) => {
+        systemState.currentVizMode = mode;
+        
+        if (!wallInstancedMesh) return;
 
-      iScale.oninput = (e) => {
+        const colors = [];
+        instanceData.walls.forEach((data) => {
+          let color;
+          switch (mode) {
+            case "heatmap":
+              // 热力图：蓝->绿->黄->红，表示人口密度
+              const density = data.data.populationDensity;
+              color = new THREE.Color();
+              if (density < 0.25) {
+                color.setRGB(0, density * 4, 1);
+              } else if (density < 0.5) {
+                color.setRGB(0, 1, 1 - (density - 0.25) * 4);
+              } else if (density < 0.75) {
+                color.setRGB((density - 0.5) * 4, 1, 0);
+              } else {
+                color.setRGB(1, 1 - (density - 0.75) * 4, 0);
+              }
+              break;
+
+            case "height":
+              // 高度图：按建筑高度渐变
+              const heightRatio = Math.min((data.data.height - 40) / 120, 1);
+              color = new THREE.Color();
+              color.setHSL(0.6 - heightRatio * 0.6, 0.8, 0.5);
+              break;
+
+            default:
+              // 正常模式：恢复原始颜色
+              color = data.originalColor.clone();
+              break;
+          }
+          colors.push(color);
+        });
+
+        colors.forEach((color, i) => {
+          wallInstancedMesh.setColorAt(i, color);
+        });
+        wallInstancedMesh.instanceColor.needsUpdate = true;
+
+        document.querySelectorAll(".viz-btn").forEach(btn => {
+          btn.classList.toggle("active", btn.dataset.viz === mode);
+        });
+      };
+
+      // ==================== UI 控制事件绑定 ====================
+      const inputScale = document.getElementById("input-scale");
+      const inputAngle = document.getElementById("input-angle");
+      const inputZoom = document.getElementById("input-zoom");
+      const inputNight = document.getElementById("input-night");
+      const inputAutoTraffic = document.getElementById("input-auto-traffic");
+      const inputTrafficTimer = document.getElementById("input-traffic-timer");
+
+      inputScale.oninput = (e) => {
         const val = parseFloat(e.target.value);
         document.getElementById("val-scale").innerText = val.toFixed(1);
         townGroup.scale.set(val, val, val);
       };
 
-      iAngle.oninput = (e) => {
+      inputAngle.oninput = (e) => {
         const val = parseInt(e.target.value);
         document.getElementById("val-angle").innerText = val + "°";
         townGroup.rotation.y = THREE.MathUtils.degToRad(val);
       };
 
-      iZoom.oninput = (e) => {
+      inputZoom.oninput = (e) => {
         const val = parseInt(e.target.value);
         document.getElementById("val-zoom").innerText = val;
         camera.fov = val;
         camera.updateProjectionMatrix();
       };
 
-      // UI Events
-      iNight.onchange = (e) => {
-        const isNight = e.target.checked;
-        const bgColor = isNight ? 0x01010b : 0x87ceeb;
-
-        // 1. Scene Background
+      inputNight.onchange = (e) => {
+        systemState.isNight = e.target.checked;
+        const bgColor = systemState.isNight ? 0x01010b : 0xaaccff;
         scene.background.set(bgColor);
         scene.fog.color.set(bgColor);
-        scene.fog.density = isNight ? 0.0012 : 0.0006;
+        scene.fog.density = systemState.isNight ? 0.0012 : 0.0006;
 
-        // 2. Lights
-        ambient.intensity = isNight ? 0.5 : 2.0;
-        sun.intensity = isNight ? 0.5 : 5.0;
-        sun.color.set(isNight ? 0x8899ff : 0xffffff);
-        renderer.toneMappingExposure = isNight ? 1.0 : 1.6;
-        bloomPass.strength = isNight ? 1.5 : 0.1;
+        ambientLight.intensity = systemState.isNight ? 0.5 : 2.0;
+        sunLight.intensity = systemState.isNight ? 0.5 : 5.0;
+        sunLight.color.set(systemState.isNight ? 0x8899ff : 0xffffff);
+        renderer.toneMappingExposure = systemState.isNight ? 1.0 : 1.6;
+        bloomPass.strength = systemState.isNight ? 1.5 : 0.1;
 
-        // 3. Stars Visibility
-        if (stars) stars.visible = isNight;
+        if (stars) stars.visible = systemState.isNight;
 
-        // 4. Building Windows (Bulk)
         if (windowInstancedMesh) {
-          windowInstancedMesh.material.emissiveIntensity = isNight ? 2 : 0;
+          windowInstancedMesh.material.emissiveIntensity = systemState.isNight ? 2 : 0;
         }
 
-        // 5. Neons
         if (neons && neons.length > 0) {
           neons.forEach((n) => {
             if (n && n.material)
-              n.material.emissiveIntensity = isNight ? 12 : 0;
+              n.material.emissiveIntensity = systemState.isNight ? 12 : 0;
           });
         }
 
-        // 6. Other Instanced Meshes
         if (lampBulbWithMesh)
-          lampBulbWithMesh.material.emissiveIntensity = isNight ? 25 : 0;
+          lampBulbWithMesh.material.emissiveIntensity = systemState.isNight ? 25 : 0;
         if (carInstancedMesh)
-          carInstancedMesh.material.emissiveIntensity = isNight ? 15 : 0;
+          carInstancedMesh.material.emissiveIntensity = systemState.isNight ? 15 : 0;
 
-        // 7. Walls Tint
-        if (wallInstancedMesh) {
-          wallInstancedMesh.material.color.set(isNight ? 0x667799 : 0xffffff);
+        if (wallInstancedMesh && systemState.currentVizMode === "none") {
+          wallInstancedMesh.material.color.set(systemState.isNight ? 0x667799 : 0xffffff);
+        }
+
+        setWeather(systemState.currentWeather);
+      };
+
+      inputAutoTraffic.onchange = (e) => {
+        systemState.autoTrafficLight = e.target.checked;
+        if (!systemState.autoTrafficLight) {
+          trafficLights.forEach(light => {
+            light.xDirection.red.material.emissiveIntensity = 0;
+            light.xDirection.yellow.material.emissiveIntensity = 0;
+            light.xDirection.green.material.emissiveIntensity = 2;
+            light.zDirection.red.material.emissiveIntensity = 0;
+            light.zDirection.yellow.material.emissiveIntensity = 0;
+            light.zDirection.green.material.emissiveIntensity = 2;
+          });
         }
       };
 
-      // Fix Shadow Bias and Brightness
-      sun.shadow.bias = -0.002;
-      ambient.intensity = 2.0;
-      sun.intensity = 5.0;
+      inputTrafficTimer.oninput = (e) => {
+        const val = parseInt(e.target.value);
+        systemState.trafficLightTimer = val;
+        document.getElementById("val-traffic-timer").innerText = val + "s";
+      };
+
+      document.querySelectorAll(".weather-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          setWeather(btn.dataset.weather);
+        });
+      });
+
+      document.querySelectorAll(".viz-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          setVisualizationMode(btn.dataset.viz);
+        });
+      });
+
+      sunLight.shadow.bias = -0.002;
+      ambientLight.intensity = 2.0;
+      sunLight.intensity = 5.0;
       scene.fog.density = 0.0006;
       renderer.toneMappingExposure = 1.6;
 
-      // --- Render Loop ---
+      // ==================== 渲染循环 ====================
       const clock = new THREE.Clock();
       const dummy = new THREE.Object3D();
+      
       function animate() {
         requestAnimationFrame(animate);
-        const time = clock.getElapsedTime();
+        const deltaTime = clock.getDelta();
+        const elapsedTime = clock.getElapsedTime();
         controls.update();
 
-        // Twinkle Stars (CPU-based vertex color update)
+        updateWeather(deltaTime);
+        updateTrafficLights(deltaTime);
+
         if (stars && stars.visible) {
           stars.rotation.y += 0.00005;
           const colors = stars.geometry.attributes.color.array;
           for (let i = 0; i < starPhases.length; i++) {
-            // Sine wave blinking: 0.3 to 1.0 intensity
-            const brightness = 0.5 + Math.sin(time * 3 + starPhases[i]) * 0.5;
+            const brightness = 0.5 + Math.sin(elapsedTime * 3 + starPhases[i]) * 0.5;
             colors[i * 3] = brightness;
             colors[i * 3 + 1] = brightness;
             colors[i * 3 + 2] = brightness;
@@ -1243,9 +1789,18 @@
           stars.geometry.attributes.color.needsUpdate = true;
         }
 
-        // Animate Traffic (InstancedMesh)
         if (carInstancedMesh) {
           trafficData.forEach((car) => {
+            const needToStop = shouldCarStop(car);
+            
+            if (needToStop) {
+              car.stopped = true;
+              car.speed = 0;
+            } else {
+              car.stopped = false;
+              car.speed = car.baseSpeed;
+            }
+
             if (car.axis === "x") {
               car.x += car.speed;
               if (car.x > 500) car.x = -500;
@@ -1263,21 +1818,15 @@
           carInstancedMesh.instanceMatrix.needsUpdate = true;
         }
 
-        // Window breathing & Neon flicker (Optimized)
-        if (iNight.checked) {
-          const bloomCycle = Math.sin(time) * 0.5 + 2;
+        if (inputNight.checked) {
+          const bloomCycle = Math.sin(elapsedTime) * 0.5 + 2;
           if (windowInstancedMesh) {
             windowInstancedMesh.material.emissiveIntensity = bloomCycle;
           }
-
           neons.forEach((n) => {
             if (Math.random() > 0.98)
               n.material.emissiveIntensity = 2 + Math.random() * 15;
           });
-
-          // Twinkle stars (only if visible)
-          // starGroup handles rotation, size animation removed or needs update for sprites if desired
-          // Sprites use scale, not material.size. For now just remove the error.
         }
 
         composer.render();
@@ -1285,10 +1834,10 @@
       animate();
 
       const hideLoading = () => {
-        const ls = document.getElementById("loading-screen");
-        if (ls) {
-          ls.style.opacity = "0";
-          setTimeout(() => (ls.style.display = "none"), 800);
+        const loadingScreen = document.getElementById("loading-screen");
+        if (loadingScreen) {
+          loadingScreen.style.opacity = "0";
+          setTimeout(() => (loadingScreen.style.display = "none"), 800);
         }
       };
       window.addEventListener("load", hideLoading);
@@ -1303,7 +1852,6 @@
         bloomPass.resolution.set(window.innerWidth / 4, window.innerHeight / 4);
       });
 
-      // Mobile Panel Toggle
       const overlay = document.querySelector(".overlay");
       overlay.addEventListener("click", (e) => {
         if (window.innerWidth <= 768) {
