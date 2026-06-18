@@ -140,6 +140,36 @@
         opacity: 0.8;
       }
 
+      /* 自定义下拉选择框样式（用于天气、数据可视化模式选择） */
+      select {
+        width: 100%;
+        padding: 6px 10px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #fff;
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 0.78rem;
+        font-weight: 600;
+        outline: none;
+        cursor: pointer;
+        appearance: none;
+        background-image: linear-gradient(45deg, transparent 50%, var(--primary) 50%),
+          linear-gradient(135deg, var(--primary) 50%, transparent 50%);
+        background-position: calc(100% - 16px) center, calc(100% - 11px) center;
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      }
+      select:hover {
+        border-color: var(--primary);
+        box-shadow: 0 0 10px rgba(0, 242, 255, 0.2);
+      }
+      select option {
+        background: #0a0a14;
+        color: #fff;
+      }
+
       .switch {
         position: relative;
         display: inline-block;
@@ -276,6 +306,24 @@
 
     <div id="canvas-container"></div>
 
+    <!-- 雷电闪光全屏遮罩：通过 CSS opacity 切换实现整个屏幕的闪白效果 -->
+    <div
+      id="lightning-overlay"
+      style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #ffffff;
+        opacity: 0;
+        pointer-events: none;
+        mix-blend-mode: screen;
+        z-index: 50;
+        transition: opacity 0.08s linear;
+      "
+    ></div>
+
     <div class="overlay">
       <div class="title-section">
         <h1>3D 城市控制面板</h1>
@@ -334,6 +382,60 @@
             <span class="slider"></span>
           </label>
         </div>
+      </div>
+
+      <!-- 天气效果切换：晴/雨/雪/雾/雷电 -->
+      <div class="control-group">
+        <label>天气效果</label>
+        <select id="input-weather" aria-label="天气效果">
+          <option value="clear">晴朗</option>
+          <option value="rain">雨</option>
+          <option value="snow">雪</option>
+          <option value="fog">雾</option>
+          <option value="thunder">雷电</option>
+        </select>
+      </div>
+
+      <!-- 建筑数据可视化模式：默认/热力图/高度图 -->
+      <div class="control-group">
+        <label>数据可视化</label>
+        <select id="input-dataviz" aria-label="数据可视化模式">
+          <option value="none">关闭</option>
+          <option value="heat">热力图（人口密度）</option>
+          <option value="height">高度图（楼宇高度）</option>
+        </select>
+      </div>
+
+      <!-- 交通信号灯：手动切换 / 影响车流 -->
+      <div class="control-group">
+        <label
+          >当前路口信号 <span class="value-display" id="val-light">绿</span></label
+        >
+        <div class="toggle-container">
+          <span style="font-size: 0.75rem; color: var(--text-dim)">自动循环</span>
+          <label class="switch">
+            <input type="checkbox" id="input-light-auto" checked aria-label="信号灯自动" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <button
+          id="btn-light-toggle"
+          style="
+            margin-top: 8px;
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.06);
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+          "
+        >
+          手动切换信号灯
+        </button>
       </div>
     </div>
 
@@ -861,6 +963,10 @@
       };
       createParks();
 
+      // 建筑模拟数据集合：每个建筑保存其位置、高度、人口密度等信息
+      // 用于"热力图 / 高度图"数据可视化模式以及未来扩展的指标查询
+      const buildingsData = [];
+
       // --- Skyscraper Assembler with Instanced Data ---
       const createSkyscraper = (x, z) => {
         const heightFactor = 40 + Math.random() * 120;
@@ -876,6 +982,11 @@
         const neonY = heightFactor * 0.6;
         const neonZ = 0;
 
+        // 该建筑包含的所有 wall instance 索引集合（用于后续按建筑级别替换颜色）
+        const wallInstanceIndices = [];
+        // 模拟数据：populationDensity 表示人口/能耗强度（0~1），用于热力图渲染
+        const populationDensity = Math.random();
+
         let currentY = 0;
         let currentWidth = width;
 
@@ -889,6 +1000,7 @@
           dummy3D.rotation.set(0, 0, 0);
           dummy3D.scale.set(tW, tH, tW);
           dummy3D.updateMatrix();
+          wallInstanceIndices.push(instanceData.walls.length);
           instanceData.walls.push({
             matrix: dummy3D.matrix.clone(),
             color: baseColor,
@@ -899,6 +1011,7 @@
             dummy3D.position.set(x, currentY + tH + 2, z);
             dummy3D.scale.set(5, 4, 5);
             dummy3D.updateMatrix();
+            wallInstanceIndices.push(instanceData.walls.length);
             instanceData.walls.push({
               matrix: dummy3D.matrix.clone(),
               color: new THREE.Color(0x222222),
@@ -1024,6 +1137,16 @@
             }
           }
         }
+
+        // 保存当前建筑的模拟数据，便于后续可视化模式查找
+        buildingsData.push({
+          x,
+          z,
+          height: heightFactor,
+          baseColor: baseColor.clone(),
+          populationDensity,
+          wallInstanceIndices,
+        });
       };
 
       // --- Skyscraper Spawn Loop (Avoiding River & Parks) ---
@@ -1144,6 +1267,396 @@
       // Execute build
       buildInstancedMeshes();
 
+      /* =========================================================
+       *  动态天气系统：雨 / 雪 / 雾 / 雷电
+       *  通过 THREE.Points 实现降雨/降雪粒子；通过 fog 调节雾浓度；
+       *  通过 DirectionalLight 闪烁 + 屏幕光叠加模拟雷电闪光
+       * ========================================================= */
+      const weatherSystem = {
+        currentMode: "clear", // 当前天气：clear | rain | snow | fog | thunder
+        rainPoints: null, // 雨点粒子对象
+        snowPoints: null, // 雪点粒子对象
+        lightningOverlay: null, // 全屏闪光 DOM 遮罩
+        thunderTimer: 0, // 距下次雷击的倒计时（秒）
+        thunderFlashLeft: 0, // 当前闪光剩余时间（秒）
+        thunderFlashDuration: 0.18, // 单次闪光总时长
+        // 雷击时光照增量（瞬时值），用于场景内同步亮一下
+        thunderAmbientBoost: 0,
+        // 默认 fog 备份，便于切换回晴朗时恢复
+        defaultFogDensity: 0.0006,
+        defaultBgColor: new THREE.Color(0x87ceeb),
+      };
+
+      /**
+       * 创建雨粒子系统
+       * 使用 THREE.Points 复用 Buffer 显著降低 GPU 压力
+       */
+      const createRainParticles = () => {
+        const count = 6000;
+        const geo = new THREE.BufferGeometry();
+        const positions = new Float32Array(count * 3);
+        const velocities = new Float32Array(count); // 每个雨滴的下落速度
+        for (let i = 0; i < count; i++) {
+          positions[i * 3] = (Math.random() - 0.5) * 1200; // x
+          positions[i * 3 + 1] = Math.random() * 400 + 50; // y（高空）
+          positions[i * 3 + 2] = (Math.random() - 0.5) * 1200; // z
+          velocities[i] = 4 + Math.random() * 4; // 不同雨滴速度差
+        }
+        geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        geo.userData.velocities = velocities;
+        const mat = new THREE.PointsMaterial({
+          color: 0xaaccee,
+          size: 1.6,
+          transparent: true,
+          opacity: 0.55,
+          depthWrite: false,
+          fog: true,
+        });
+        const points = new THREE.Points(geo, mat);
+        points.visible = false;
+        scene.add(points);
+        return points;
+      };
+
+      /**
+       * 创建雪粒子系统
+       * 雪花使用径向渐变贴图，下落较慢并带横向漂移
+       */
+      const createSnowParticles = () => {
+        const count = 4000;
+        const geo = new THREE.BufferGeometry();
+        const positions = new Float32Array(count * 3);
+        const drifts = new Float32Array(count); // 每片雪的漂移相位
+        for (let i = 0; i < count; i++) {
+          positions[i * 3] = (Math.random() - 0.5) * 1200;
+          positions[i * 3 + 1] = Math.random() * 400 + 30;
+          positions[i * 3 + 2] = (Math.random() - 0.5) * 1200;
+          drifts[i] = Math.random() * Math.PI * 2;
+        }
+        geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        geo.userData.drifts = drifts;
+
+        // 创建一个柔和的雪花贴图（圆形渐变）
+        const canvas = document.createElement("canvas");
+        canvas.width = 32;
+        canvas.height = 32;
+        const ctx = canvas.getContext("2d");
+        const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+        grad.addColorStop(0, "rgba(255,255,255,1)");
+        grad.addColorStop(0.5, "rgba(255,255,255,0.5)");
+        grad.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 32, 32);
+        const tex = new THREE.CanvasTexture(canvas);
+
+        const mat = new THREE.PointsMaterial({
+          map: tex,
+          color: 0xffffff,
+          size: 2.5,
+          transparent: true,
+          opacity: 0.85,
+          depthWrite: false,
+          fog: true,
+        });
+        const points = new THREE.Points(geo, mat);
+        points.visible = false;
+        scene.add(points);
+        return points;
+      };
+
+      /**
+       * 获取全屏闪光 DOM 遮罩
+       * 雷击时通过修改其 opacity 使整个画面瞬间变白；
+       * 比放置 3D PlaneGeometry 更可靠，不受相机角度影响
+       */
+      const getLightningOverlay = () => {
+        return document.getElementById("lightning-overlay");
+      };
+
+      // 初始化所有粒子（隐藏）
+      weatherSystem.rainPoints = createRainParticles();
+      weatherSystem.snowPoints = createSnowParticles();
+      weatherSystem.lightningOverlay = getLightningOverlay();
+
+      /**
+       * 切换天气模式
+       * 不同模式调整雾浓度/颜色、粒子可见性、雷电相关计时器
+       */
+      const setWeatherMode = (mode) => {
+        const prevMode = weatherSystem.currentMode;
+        weatherSystem.currentMode = mode;
+        // 默认隐藏全部粒子
+        weatherSystem.rainPoints.visible = false;
+        weatherSystem.snowPoints.visible = false;
+        // 重置闪光遮罩与计时
+        if (weatherSystem.lightningOverlay) {
+          weatherSystem.lightningOverlay.style.opacity = 0;
+        }
+        weatherSystem.thunderFlashLeft = 0;
+        weatherSystem.thunderAmbientBoost = 0;
+
+        const isNight = iNight.checked;
+        // 在夜晚保留夜间风格的雾色
+        const baseBg = isNight ? 0x01010b : 0x87ceeb;
+        const baseFogDensity = isNight ? 0.0012 : 0.0006;
+
+        // 从雷电模式切走时，恢复正常环境光/日光强度
+        if (prevMode === "thunder" && mode !== "thunder") {
+          ambient.intensity = isNight ? 0.5 : 2.0;
+          sun.intensity = isNight ? 0.5 : 5.0;
+        }
+
+        switch (mode) {
+          case "rain":
+            weatherSystem.rainPoints.visible = true;
+            scene.background.set(0x6a7a8a); // 阴沉灰色
+            scene.fog.color.set(0x6a7a8a);
+            scene.fog.density = 0.002;
+            break;
+          case "snow":
+            weatherSystem.snowPoints.visible = true;
+            scene.background.set(0xc8d4dd); // 灰白
+            scene.fog.color.set(0xc8d4dd);
+            scene.fog.density = 0.0018;
+            break;
+          case "fog":
+            scene.background.set(0xb0b8c0);
+            scene.fog.color.set(0xb0b8c0);
+            scene.fog.density = 0.006; // 浓雾
+            break;
+          case "thunder":
+            // 雷电模式默认伴随雨
+            weatherSystem.rainPoints.visible = true;
+            scene.background.set(0x222831);
+            scene.fog.color.set(0x222831);
+            scene.fog.density = 0.0025;
+            // 让首次雷击在 0.8~2s 内触发，避免切换后长时间无反馈
+            weatherSystem.thunderTimer = 0.8 + Math.random() * 1.2;
+            break;
+          case "clear":
+          default:
+            scene.background.set(baseBg);
+            scene.fog.color.set(baseBg);
+            scene.fog.density = baseFogDensity;
+            break;
+        }
+      };
+
+      /* =========================================================
+       *  数据可视化系统：热力图 / 高度图
+       *  对建筑墙体 InstancedMesh 的颜色按建筑指标重新染色
+       * ========================================================= */
+      const dataVizSystem = {
+        currentMode: "none", // none | heat | height
+      };
+
+      /**
+       * 应用建筑数据可视化
+       * heat：根据 populationDensity 在 蓝→绿→黄→红 之间映射
+       * height：根据建筑高度在 深蓝→青→白 之间映射
+       * none：恢复原始颜色
+       */
+      const applyDataViz = (mode) => {
+        dataVizSystem.currentMode = mode;
+        if (!wallInstancedMesh) return;
+
+        // 计算高度范围用于归一化
+        let minH = Infinity;
+        let maxH = -Infinity;
+        buildingsData.forEach((b) => {
+          if (b.height < minH) minH = b.height;
+          if (b.height > maxH) maxH = b.height;
+        });
+        const heightSpan = Math.max(1, maxH - minH);
+
+        const tempColor = new THREE.Color();
+        buildingsData.forEach((b) => {
+          let color;
+          if (mode === "heat") {
+            // HSL 色相：蓝(0.66)~红(0)
+            const hue = (1 - b.populationDensity) * 0.66;
+            tempColor.setHSL(hue, 0.85, 0.55);
+            color = tempColor;
+          } else if (mode === "height") {
+            const ratio = (b.height - minH) / heightSpan;
+            // 深蓝 -> 青 -> 白
+            tempColor.setHSL(0.6 - ratio * 0.1, 0.7, 0.3 + ratio * 0.55);
+            color = tempColor;
+          } else {
+            color = b.baseColor;
+          }
+          b.wallInstanceIndices.forEach((idx) => {
+            wallInstancedMesh.setColorAt(idx, color);
+          });
+        });
+        if (wallInstancedMesh.instanceColor) {
+          wallInstancedMesh.instanceColor.needsUpdate = true;
+        }
+      };
+
+      /* =========================================================
+       *  交通信号灯系统
+       *  在城市主要路口放置可视化的红绿灯柱，并影响经过的车辆
+       *  state: 'NS_GREEN' 表示南北方向(沿 z 轴) 绿灯/东西红灯
+       *         'EW_GREEN' 表示东西方向(沿 x 轴) 绿灯/南北红灯
+       * ========================================================= */
+      const trafficLightSystem = {
+        intersections: [], // 路口数组
+        autoCycle: true, // 是否自动循环
+        cycleTimer: 0, // 自动切换计时
+        cycleDuration: 6, // 每个相位持续秒数
+      };
+
+      /**
+       * 创建一个路口处的红绿灯立柱（含 NS / EW 两个灯头）
+       */
+      const createTrafficLight = (x, z) => {
+        const group = new THREE.Group();
+
+        // 灯柱
+        const pole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.4, 0.4, 14),
+          new THREE.MeshStandardMaterial({ color: 0x222222 }),
+        );
+        pole.position.set(0, 7, 0);
+        group.add(pole);
+
+        // 创建一个"灯头"，包含红黄绿三个灯泡
+        const buildHead = (rotationY) => {
+          const head = new THREE.Group();
+          const housing = new THREE.Mesh(
+            new THREE.BoxGeometry(2.4, 6, 1.2),
+            new THREE.MeshStandardMaterial({ color: 0x111111 }),
+          );
+          head.add(housing);
+          const bulbGeo = new THREE.SphereGeometry(0.6, 12, 12);
+          const colors = [
+            { name: "red", color: 0xff2233 },
+            { name: "yellow", color: 0xffcc22 },
+            { name: "green", color: 0x33ff66 },
+          ];
+          const bulbs = {};
+          colors.forEach((c, i) => {
+            const m = new THREE.MeshStandardMaterial({
+              color: 0x000000,
+              emissive: c.color,
+              emissiveIntensity: 0,
+            });
+            const bulb = new THREE.Mesh(bulbGeo, m);
+            bulb.position.set(0, 1.8 - i * 1.8, 0.7);
+            head.add(bulb);
+            bulbs[c.name] = bulb;
+          });
+          head.position.set(0, 12, 0);
+          head.rotation.y = rotationY;
+          head.userData.bulbs = bulbs;
+          return head;
+        };
+
+        // 东西方向灯头（朝向 +X）
+        const headEW = buildHead(Math.PI / 2);
+        // 南北方向灯头（朝向 +Z）
+        const headNS = buildHead(0);
+        group.add(headEW);
+        group.add(headNS);
+
+        group.position.set(x, 0, z);
+        townGroup.add(group);
+
+        return { x, z, group, headEW, headNS };
+      };
+
+      // 在中心 4 个主要路口放置信号灯
+      const intersectionCoords = [
+        { x: -80, z: -80 },
+        { x: -80, z: 80 },
+        { x: 80, z: -80 },
+        { x: 80, z: 80 },
+      ];
+      intersectionCoords.forEach((c) => {
+        // 灯柱放在路口右上角偏移位置（视觉），但停车判定使用路口中心 (c.x, c.z)
+        const light = createTrafficLight(c.x + 8, c.z + 8);
+        light.centerX = c.x;
+        light.centerZ = c.z;
+        light.state = "EW_GREEN"; // 初始：东西绿灯
+        trafficLightSystem.intersections.push(light);
+      });
+
+      /**
+       * 设置某路口红绿灯状态并刷新发光强度
+       * phase 取值: 'EW_GREEN' | 'EW_YELLOW' | 'NS_GREEN' | 'NS_YELLOW'
+       */
+      const setIntersectionState = (light, phase) => {
+        light.state = phase;
+        const setBulb = (head, active) => {
+          // active: 'red' | 'yellow' | 'green'
+          ["red", "yellow", "green"].forEach((k) => {
+            head.userData.bulbs[k].material.emissiveIntensity =
+              k === active ? 6 : 0;
+          });
+        };
+        switch (phase) {
+          case "EW_GREEN":
+            setBulb(light.headEW, "green");
+            setBulb(light.headNS, "red");
+            break;
+          case "EW_YELLOW":
+            setBulb(light.headEW, "yellow");
+            setBulb(light.headNS, "red");
+            break;
+          case "NS_GREEN":
+            setBulb(light.headEW, "red");
+            setBulb(light.headNS, "green");
+            break;
+          case "NS_YELLOW":
+            setBulb(light.headEW, "red");
+            setBulb(light.headNS, "yellow");
+            break;
+        }
+      };
+
+      // 初始化所有路口的灯泡显示状态
+      trafficLightSystem.intersections.forEach((l) =>
+        setIntersectionState(l, "EW_GREEN"),
+      );
+
+      /**
+       * 全局切换信号灯（手动一键切换）
+       * 简化为：在 EW_GREEN <-> NS_GREEN 之间切换，黄灯过渡可由自动循环负责
+       */
+      const toggleAllIntersections = () => {
+        trafficLightSystem.intersections.forEach((l) => {
+          const next = l.state === "EW_GREEN" ? "NS_GREEN" : "EW_GREEN";
+          setIntersectionState(l, next);
+        });
+        // 同步更新 UI
+        const isEW = trafficLightSystem.intersections[0].state === "EW_GREEN";
+        document.getElementById("val-light").innerText = isEW
+          ? "东西绿"
+          : "南北绿";
+      };
+
+      /**
+       * 自动循环信号灯：EW_GREEN -> EW_YELLOW -> NS_GREEN -> NS_YELLOW -> ...
+       */
+      const advanceAutoCycle = () => {
+        trafficLightSystem.intersections.forEach((l) => {
+          const order = ["EW_GREEN", "EW_YELLOW", "NS_GREEN", "NS_YELLOW"];
+          const idx = order.indexOf(l.state);
+          const next = order[(idx + 1) % order.length];
+          setIntersectionState(l, next);
+        });
+        const stateNow = trafficLightSystem.intersections[0].state;
+        const label =
+          {
+            EW_GREEN: "东西绿",
+            EW_YELLOW: "东西黄",
+            NS_GREEN: "南北绿",
+            NS_YELLOW: "南北黄",
+          }[stateNow] || stateNow;
+        document.getElementById("val-light").innerText = label;
+      };
+
       // --- UI & Controls ---
       const iScale = document.getElementById("input-scale");
       const iAngle = document.getElementById("input-angle");
@@ -1212,6 +1725,33 @@
         if (wallInstancedMesh) {
           wallInstancedMesh.material.color.set(isNight ? 0x667799 : 0xffffff);
         }
+
+        // 8. 切换昼夜后若当前有特殊天气，重新应用以保持视觉一致
+        if (weatherSystem.currentMode !== "clear") {
+          setWeatherMode(weatherSystem.currentMode);
+        }
+      };
+
+      // 天气下拉切换
+      const iWeather = document.getElementById("input-weather");
+      iWeather.onchange = (e) => setWeatherMode(e.target.value);
+
+      // 数据可视化下拉切换
+      const iDataViz = document.getElementById("input-dataviz");
+      iDataViz.onchange = (e) => applyDataViz(e.target.value);
+
+      // 信号灯自动循环开关
+      const iLightAuto = document.getElementById("input-light-auto");
+      iLightAuto.onchange = (e) => {
+        trafficLightSystem.autoCycle = e.target.checked;
+      };
+
+      // 信号灯手动切换按钮
+      document.getElementById("btn-light-toggle").onclick = () => {
+        // 手动切换时关闭自动循环以避免立即被覆盖
+        iLightAuto.checked = false;
+        trafficLightSystem.autoCycle = false;
+        toggleAllIntersections();
       };
 
       // Fix Shadow Bias and Brightness
@@ -1224,10 +1764,148 @@
       // --- Render Loop ---
       const clock = new THREE.Clock();
       const dummy = new THREE.Object3D();
+
+      // 信号灯影响范围（路口中心半径范围内若需停车则停止）
+      const STOP_DISTANCE = 22;
+
+      /**
+       * 判断车辆是否需要因红/黄灯而停车
+       * 沿 X 轴行驶的车辆受 NS_GREEN/NS_YELLOW 影响（即东西方向红灯）
+       * 沿 Z 轴行驶的车辆受 EW_GREEN/EW_YELLOW 影响（即南北方向红灯）
+       */
+      const shouldCarStop = (car) => {
+        for (const light of trafficLightSystem.intersections) {
+          const cx = light.centerX;
+          const cz = light.centerZ;
+          const dx = car.x - cx;
+          const dz = car.z - cz;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist > STOP_DISTANCE) continue;
+
+          if (car.axis === "x") {
+            // X 轴车辆：东西向红灯时停（NS_GREEN / NS_YELLOW）
+            if (
+              light.state === "NS_GREEN" ||
+              light.state === "NS_YELLOW"
+            ) {
+              // 仅在车辆尚未越过路口中心、即将进入时停车
+              if (
+                (car.speed > 0 && car.x < cx) ||
+                (car.speed < 0 && car.x > cx)
+              ) {
+                return true;
+              }
+            }
+          } else {
+            // Z 轴车辆：南北向红灯时停（EW_GREEN / EW_YELLOW）
+            if (
+              light.state === "EW_GREEN" ||
+              light.state === "EW_YELLOW"
+            ) {
+              if (
+                (car.speed > 0 && car.z < cz) ||
+                (car.speed < 0 && car.z > cz)
+              ) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      };
+
       function animate() {
         requestAnimationFrame(animate);
-        const time = clock.getElapsedTime();
+        // 注意：THREE.Clock.getElapsedTime() 内部会消耗 delta，
+        // 因此先取 delta，再用累加值表示已运行时间，避免计时丢失
+        const delta = clock.getDelta();
+        const time = clock.elapsedTime;
         controls.update();
+
+        // 天气：雨滴下落更新
+        if (weatherSystem.rainPoints && weatherSystem.rainPoints.visible) {
+          const pos = weatherSystem.rainPoints.geometry.attributes.position.array;
+          const vel = weatherSystem.rainPoints.geometry.userData.velocities;
+          for (let i = 0; i < vel.length; i++) {
+            pos[i * 3 + 1] -= vel[i]; // y 下降
+            pos[i * 3] += 0.4; // 微弱风向
+            if (pos[i * 3 + 1] < 0) {
+              pos[i * 3 + 1] = 400 + Math.random() * 50;
+              pos[i * 3] = (Math.random() - 0.5) * 1200;
+              pos[i * 3 + 2] = (Math.random() - 0.5) * 1200;
+            }
+          }
+          weatherSystem.rainPoints.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // 天气：雪花飘落 + 横向漂移
+        if (weatherSystem.snowPoints && weatherSystem.snowPoints.visible) {
+          const pos = weatherSystem.snowPoints.geometry.attributes.position.array;
+          const drifts = weatherSystem.snowPoints.geometry.userData.drifts;
+          for (let i = 0; i < drifts.length; i++) {
+            pos[i * 3 + 1] -= 0.8; // 缓慢下降
+            pos[i * 3] += Math.sin(time * 0.5 + drifts[i]) * 0.3;
+            pos[i * 3 + 2] += Math.cos(time * 0.5 + drifts[i]) * 0.3;
+            if (pos[i * 3 + 1] < 0) {
+              pos[i * 3 + 1] = 400 + Math.random() * 30;
+              pos[i * 3] = (Math.random() - 0.5) * 1200;
+              pos[i * 3 + 2] = (Math.random() - 0.5) * 1200;
+            }
+          }
+          weatherSystem.snowPoints.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // 天气：雷电闪光
+        // 使用 DOM 全屏 overlay + 临时增强光照 实现雷击瞬间整个画面变白
+        if (weatherSystem.currentMode === "thunder") {
+          weatherSystem.thunderTimer -= delta;
+          if (weatherSystem.thunderFlashLeft > 0) {
+            // 闪光中：opacity 与光照增量按剩余时间衰减
+            weatherSystem.thunderFlashLeft -= delta;
+            const t = Math.max(
+              0,
+              weatherSystem.thunderFlashLeft /
+                weatherSystem.thunderFlashDuration,
+            );
+            // 双闪：在衰减期内做一次正弦扰动，模拟"咔嚓"二次闪
+            const flashIntensity = t * (0.6 + 0.4 * Math.abs(Math.sin(t * 18)));
+            if (weatherSystem.lightningOverlay) {
+              weatherSystem.lightningOverlay.style.opacity = flashIntensity;
+            }
+            weatherSystem.thunderAmbientBoost = flashIntensity * 4;
+            // 实时叠加到环境光与平行光，使建筑也跟着闪
+            ambient.intensity = 0.5 + weatherSystem.thunderAmbientBoost;
+            sun.intensity = 0.5 + weatherSystem.thunderAmbientBoost * 1.5;
+          } else {
+            // 闪光结束：恢复到雷电场景的常态光照
+            if (weatherSystem.lightningOverlay) {
+              weatherSystem.lightningOverlay.style.opacity = 0;
+            }
+            ambient.intensity = iNight.checked ? 0.4 : 0.8;
+            sun.intensity = iNight.checked ? 0.4 : 1.2;
+
+            if (weatherSystem.thunderTimer <= 0) {
+              // 触发一次新的雷击
+              weatherSystem.thunderFlashLeft =
+                weatherSystem.thunderFlashDuration;
+              // 下次间隔 1.5~5s
+              weatherSystem.thunderTimer = 1.5 + Math.random() * 3.5;
+            }
+          }
+        } else if (weatherSystem.lightningOverlay) {
+          weatherSystem.lightningOverlay.style.opacity = 0;
+        }
+
+        // 信号灯自动循环
+        if (trafficLightSystem.autoCycle) {
+          trafficLightSystem.cycleTimer += delta;
+          if (
+            trafficLightSystem.cycleTimer >= trafficLightSystem.cycleDuration
+          ) {
+            trafficLightSystem.cycleTimer = 0;
+            advanceAutoCycle();
+          }
+        }
 
         // Twinkle Stars (CPU-based vertex color update)
         if (stars && stars.visible) {
@@ -1246,14 +1924,21 @@
         // Animate Traffic (InstancedMesh)
         if (carInstancedMesh) {
           trafficData.forEach((car) => {
+            // 信号灯影响：到达红灯时停车
+            const stopped = shouldCarStop(car);
+            if (!stopped) {
+              if (car.axis === "x") {
+                car.x += car.speed;
+                if (car.x > 500) car.x = -500;
+              } else {
+                car.z += car.speed;
+                if (car.z > 500) car.z = -500;
+              }
+            }
             if (car.axis === "x") {
-              car.x += car.speed;
-              if (car.x > 500) car.x = -500;
               dummy.position.set(car.x, 0.6, car.z);
               dummy.rotation.set(0, 0, 0);
             } else {
-              car.z += car.speed;
-              if (car.z > 500) car.z = -500;
               dummy.position.set(car.x, 0.6, car.z);
               dummy.rotation.set(0, Math.PI / 2, 0);
             }
